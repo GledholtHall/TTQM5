@@ -163,8 +163,8 @@ def secondPage(params) {
 }
 
 def vMQTT() {
-    dynamicPage(name: "vMQTT", title: "<h2><b>Virtual MQTT Data</b></h2>(optional)", nextPage: "discovery") {
-        atomicState.vList=["RM Connector Variable", "Virtual audioVolume", "Virtual Button","Virtual CO Detector", "Virtual Color Temperature Light", "Virtual Contact Sensor", "Virtual Dimmer", "Virtual Fan Controller", "Virtual Garage Door Controller", "Virtual Humidity Sensor", "Virtual Illuminance Sensor", "Virtual Lock", "Virtual Moisture Sensor", "Virtual Motion Sensor", "Virtual Multi Sensor", "Virtual Omni Sensor", "Virtual Presence", "Virtual RGB Light", "Virtual RGBW Light", "Virtual Shade","Virtual Smoke Detector", "Virtual Switch", "Virtual Temperature Sensor", "Virtual Thermostat"  ]
+    dynamicPage(name: "vMQTT", title: "<h2><b>Virtual MQTT Devices and Data</b></h2>(optional)", nextPage: "discovery") {
+        atomicState.vList=["RM Connector Variable", "MQTT Text", "Virtual audioVolume", "Virtual Button","Virtual CO Detector", "Virtual Color Temperature Light", "Virtual Contact Sensor", "Virtual Dimmer", "Virtual Fan Controller", "Virtual Garage Door Controller", "Virtual Humidity Sensor", "Virtual Illuminance Sensor", "Virtual Lock", "Virtual Moisture Sensor", "Virtual Motion Sensor", "Virtual Multi Sensor", "Virtual Omni Sensor", "Virtual Presence", "Virtual RGB Light", "Virtual RGBW Light", "Virtual Shade","Virtual Smoke Detector", "Virtual Switch", "Virtual Temperature Sensor", "Virtual Thermostat"  ]
         section {
           //input "resetMappings", "button", title: "Reset Mappings", textColor: "red"
           input "virtuals", "capability.virtual",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Virtual Devices</b>", submitOnChange: false
@@ -247,16 +247,18 @@ def vMQTT() {
                     
                 }
         }
-        if (vDev) {
+        if (vDev) {  // this is the whole page
             
             log ("Selected Device is ${vDev.displayName}  - last was {$atomicState.vDev}","DEBUG")            
             if (vDev.displayName==atomicState.vDev) newDev=false else newDev=true
             //log ("newDev is $newDev","KH")
-            if (newDev) { 
+          if (newDev) { 
                 log("#### Blocking any data updates to device from previous screen ####","INFO")
                 atomicState.attList=[]
 				temp=atomicState.attList						
-				if (vDev.getTypeName()=="RM Connector Variable") temp.add("variable")																	 
+				if (vDev.getTypeName()=="RM Connector Variable") temp.add("variable")
+                else if (vDev.getTypeName()=="MQTT Text") temp.add("text")
+              
                 vDev.capabilities.each { cap ->
                     log ("Found $cap in vDev $vDev.displayName","TRACE")
                     cap.attributes.each { attr ->
@@ -267,12 +269,12 @@ def vMQTT() {
 
                }
           }
-		          log ("Attribute list is now $temp","ERROR") 
+		  log ("Attribute list is now $temp","ERROR") 
           atomicState.attList=temp											  
-													  
+		// atomicState.attList now contains every attribute that the newly selected device has									  
                     
         }
-            else log ("Refresh of page with no change of device","DEBUG")  //something changed or F5
+          else log ("Refresh of page with no change of device","DEBUG")  //something changed or F5
             
             section {
                    // input(name: "atts", type: "enum", title: "Device Attributes",description: null, multiple: false, required: false, submitOnChange: true, options: ["Hi","you"])
@@ -294,7 +296,7 @@ def vMQTT() {
             }
             
 
-          if (dEnabled=="enabled") {   // dont display if not mqtt enabled                     
+          if (dEnabled=="enabled") {   // don't display if not mqtt enabled                     
                 section {
                     temp=atomicState.attList.sort()
                     atomicState.attList=temp
@@ -321,12 +323,13 @@ def vMQTT() {
                 temp2[i]=temp2[i]+ "${cmdSuffix}"
             }
              
-            section {  //data value update section                   
-                    for (i = 0; i < atomicState.attList.size(); i++) { // loops for every attribute device has                                                               
+      section {  //data value update section                   
+        for (i = 0; i < atomicState.attList.size(); i++) { // loops for every attribute device has                                                               
                         def String var = "var" + "${i}"
-                        def String varCmd = "varCmd" + "${i}"                        
+                        def String varCmd = "varCmd" + "${i}" 
                         // TODO Check - if this is a new device what happens
-                        // Purge previous device settings   
+                        // Purge previous device settings
+                        log.info "var is " + var + " and attribute is  "+ atomicState.attList[i]
                          try {
                             data=vDev.getDataValue("${atomicState.attList[i]}_Topic")   
                              if (newDev)  app.updateSetting (var,data)
@@ -343,7 +346,7 @@ def vMQTT() {
                              log ("No cmd for $i","DEBUG")
                           }
                         }
-                if (!newDev){
+                if (!newDev){ // this happens when a data value was updated and the device is redisplayed (it may happen when page 2 is originally entered too ??)
                     app.removeSetting(var)
                     app.removeSetting(varCmd)
                         try {
@@ -447,7 +450,7 @@ def vMQTT() {
                 }
 
             }                         
-        }  // end for
+        }  // end for loop on each attribute (i)
                      
    } // end data value update section
          try {
@@ -471,14 +474,14 @@ def vMQTT() {
         } // not enabled for MQTT
         
         
-        }
+        }  //if (vDev)
         
             else
                 if ($vDev!=null){
                 section (title: "This device <b> $vDev </b> is not enabled on MQTT") {       
                 }
                 }
-        } // end dynamic page            
+        } // end dynamic page    (vDev)          
         
     }
 
@@ -670,13 +673,15 @@ def appButtonHandler(btn) {
 }
 
 def createVirtual () {
-    childDev = addChildDevice("hubitat", "$atomicState.newDevType", "MQTT:virtual_${atomicState.newDevName}", null,[completedSetup: true,name: "${atomicState.newDevName}", logging: false])
-	//child=getChildDevice(prefix+name)  //hmm seems childDevice is not a device object 
-	//if (child == null) log ("Child was never created" + prefix+name , "ERROR")
-    log ("Created Child $atomicState.newDevType with name $atomicState.newDevName","INFO")
+    if (atomicState.newDevType == "MQTT Text") namespace = 'ukusa' else namespace = 'hubitat'
+    addChildDevice(namespace, "$atomicState.newDevType", "MQTT:virtual_${atomicState.newDevName}", null,[completedSetup: true,name: "${atomicState.newDevName}", logging: false])
+	childDev=getChildDevice("MQTT:virtual_${atomicState.newDevName}")  //hmm seems childDevice is not a device object 
+	if (childDev == null) log ("Child was never created" + prefix+name , "ERROR")
+    else log ("Created Child $atomicState.newDevType with name $atomicState.newDevName","INFO")
     childDev.updateDataValue("mqtt", "manual")
     childDev.updateDataValue("origin", "user")
-    if (childDev.typeName.contains("Sensor")) sensor=true else sensor=false    
+    if (childDev.typeName.contains("Sensor")) sensor=true else sensor=false 
+        
                     childDev.capabilities.each { cap ->
                     log ("Found $cap in childDev $childDev.displayName","TRACE")
                     cap.attributes.each { attr ->
@@ -764,13 +769,15 @@ def createVirtual () {
                                 childDev.updateDataValue(data, valON)
                                 log ("Adding default $data=<b>$valON</b> data to $childDev.displayName","INFO")
                            }
-                    //    }
-                        
-
-							 
-								  
+				  
               }
-          }   
+          }
+          if (atomicState.newDevType == "MQTT Text") {
+              childDev.updateDataValue("text_Topic", "")  // This attribute is not discovered within capability as it is custom
+              childDev.updateDataValue("text_Cmd", "")
+          }
+
+    
 }
 
 def installed() {
@@ -814,13 +821,14 @@ def reStart(evt) {
 def initialize() {
     if (atomicState.appcount==null) atomicState.appCount=0
     log ("initialising with App count ${atomicState.appCount}","INFO")
-    def date1= new Date()
+    def date1 = new Date()
     atomicState.properties=[:]
     atomicState.topicLink=[:]
     if (MD5(location.hubs[0].getZigbeeId())=="ed9bb17f2f9c2e9b721e1df63cd383e8") atomicState.myHub=true else atomicState.myHub=false
     countTry=5
     aborting=false
-    if (atomicState.abortable) atomicState.abort=true  // JUST TO TEST - will abort if still possible
+    atomicState.abort=false  // just added remove later
+    //if (atomicState.abortable) atomicState.abort=true  // JUST TO TEST - will abort if still possible
     while (atomicState.abort) {
         log("Awaiting earlier App to abort [$countTry]","WARN")
         aborting=true
@@ -857,7 +865,7 @@ def initialize() {
         return
              }
     */
-    mqtt.reset()  // Only want to do this once as the driver will continue to attempt reconnects
+    if (!atomicState.MQTTconnected) mqtt.reset()  // Only want to do this once as the driver will continue to attempt reconnects
     countTry=0
     while (!atomicState.MQTTconnected) {
         log("MQTT .. awaiting connection .. [$countTry]","INFO")
@@ -868,7 +876,7 @@ def initialize() {
             }
         pauseExecution(10000)
     }
-    log ("MQTT has now connected","INFO")
+    log ("MQTT is connected","INFO")
 
     atomicState.appCount = atomicState.appCount + 1
     log ("There are now ${atomicState.appCount} instances running","INFO")
@@ -1361,6 +1369,7 @@ def deviceSubscribes(count) {
 
 def everythingSubscribes(count) {   
     count = registerAll (everything,count)
+    log ("Registering $everything" , "LOG")
 }
 
 def registerSpecific (devList, count, attribute, handlerReq='none'){      //registers handlers for a specific device capability 
@@ -1400,8 +1409,7 @@ def registerAll (devList,count,handlerReq='none') {  //registers handlers for ev
 
 def lookupHandler(device,capability,attribute,handlerReq='none')
 {
-    log ("Need to subscribe to events from ${capability}  ${attribute} using ${handlerReq}", "TRACE")
-    
+   log ("Need to subscribe to events from ${capability}  ${attribute} using ${handlerReq}", "TRACE")    
    switch(capability) {
    case "SwitchLevel":
 	   handler="dimmed"
@@ -1457,8 +1465,7 @@ def lookupHandler(device,capability,attribute,handlerReq='none')
            if (handlerReq != handler) log ( "Auto Handler Mismatch [${device} ${capability} ${attribute}] ReqHandler:${handlerReq} AutoHandler:${handler}", "DEBUG")
            handler=handlerReq  // give it the requested one for now...
        }
-       
-    if (attribute == 'illuminance') log ("Subscribing to $device $attribute $handler","ERROR") // Is attribute inclusion right here ???
+    log ("Events subscribe to $device $attribute $handler","TRACE") // Is attribute inclusion right here ???
     subscribe(device,attribute,handler)
 }
 
@@ -1467,8 +1474,6 @@ def allDevices(evt) {  // dummy handler for now
 }
 
 def wipe() { 
-    
-
 	atomicState.onoffDevices=[] 
 	atomicState.dimDevices=[]
 	atomicState.sensorDevices=[]
@@ -1532,32 +1537,37 @@ def mqttStatus(evt) {
         atomicState.MQTTconnected=true
     }
         
-    else if (evt.value=='Status') {
+    else if (evt.value=='Connect') {   // else if (evt.value=='Status') 
         log ("MQTT has reconnected, restarting APP", "INFO")
         atomicState.MQTTconnected=true
         if (!atomicState.startup) {
-            log("reStart Requested but there's maybe another instance still initializing","WARN")
+            //atomicState.abort=true  // should kill the existing app if it's within the initialisation method
+           
+            log("restart requested but there's maybe another instance still initializing","WARN")
             log (" Abort is $atomicState.abort ", "WARN")
-            runIn(5, "reStart")
+         //   runIn(10, "reStart")
         }
-        runIn(5, "reStart")
+      //  runIn(5, "reStart") 
     }
+    
     else {
-        log ("MQTT connection error", "ERROR")
+        log ("MQTT connection error " + evt.value, "ERROR")
         atomicState.MQTTconnected=false
+    }
+    
+    //  Not doing anything now as the driver will reconnect itself, or if it was commanded to disconnect the user will have to intervene and re-run this app.
+    /*
         if (atomicState.restartPending==true){  
             log ("Restart already in progress","WARN")
             return
         }
         else {
             atomicState.restartPending=true // If this gets set then can't restart so going to set a timed unset 
-
             atomicState.MQTTconnected=false
             atomicState.abort=true // This should cause any code running in initialize() to abort
             atomicState.count=0 
             log ("Awaiting MQTT reconnect", "ERROR")
-
-            runIn(600, "reStart") // will still retry in 10 minuntes
+            runIn(600, "reStart") // will still retry in 10 minutes
             if (!atomicState.started) {  // still running initialize()
             while (atomicState.abort) {
                 log ("Waiting to abort startup..","WARN")
@@ -1566,7 +1576,7 @@ def mqttStatus(evt) {
             }
             log ("Initialize was aborted", "ERROR")
         }
-    }
+    */
     
 }
 
@@ -2214,7 +2224,7 @@ def subscribeVirtuals() {
                     myData=dev.getData()
                     if (myData != null) myData.each { dat ->
                         if (dat.key.endsWith("_Topic")) {
-                            log ("Virtual sub [$dev] " + dat.value,"DEBUG")
+                            log ("Virtual sub [$dev] " + dat.value,"KH")
                             mqtt.subscribeTopic(dat.value)
                             temp[dat.value]=dev.deviceNetworkId  
                         }
@@ -3051,6 +3061,13 @@ def otherDevices(evt, name=null, type=null, state=null, id=0, multiple=false) { 
                 HAtype="cover"  // TODO has 4 values inc closing opening
                 mqtt.publishMsg (sTopic+'/'+category+'/$format','[open,closed,opening,closing]',1,true,atomicState.suppress)
                 mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"enum",1,true,atomicState.suppress)
+            }
+            if (xType=='valve'){  
+				category='valve'
+                dType="valve"
+                mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"enum",1,true,atomicState.suppress)
+                mqtt.publishMsg (sTopic+'/'+category+'/$format','[open,closed]',1,true,atomicState.suppress)
+                settable="true"
             }
             if (xType=='variable'){  
 				category='variable'
@@ -4067,7 +4084,7 @@ def wildcardTopics(evt) {  // TODO merge with above
 //###########################  This section finds the device from incoming MQTT 'set' message to allow control   #########################
 //########################################################################################################################################
 
-def LookupManual(evt) {  // only called from unhandled adhoc parse
+def LookupManual(evt) {  // only called from unhandled adhoc parse  (usually virtual devices)
     def found=false
 	def dimDevice=false
 	def onoffDevice=false
@@ -4076,11 +4093,19 @@ def LookupManual(evt) {  // only called from unhandled adhoc parse
     def contactDevice=false																																		  
 	def data = parseJson(evt.data)
 	deviceID=data.topic
+    // only the topic is available here
+    /*
+            DNI=atomicState.newMap[normName]
+            if (DNI != null){
+                log ("Found the DNI in atomicState newMap)
+                     }
+    */
+
     LookupID=atomicState.topicLink[deviceID]
     if (LookupID != null) {			        
                 device=getChildDevice(LookupID) 
                 devType=device.getTypeName()
-                log("Virtual device $device [$devType] found in topicLink","DEBUG") //+ data.topic + " == "  + LookupID), "INFO")
+                log("Virtual device $device [$devType] found in topicLink","INFO") 
                 found=true 
                 atomicState.lastDev="$device [$evt.value]"
 //CHANGED
@@ -4092,14 +4117,16 @@ def LookupManual(evt) {  // only called from unhandled adhoc parse
                 else {
                     if (device.hasCommand ("on")) onoffDevice=true
                     if (device.hasCommand ("setLevel")) dimDevice=true
-                    if (device.getTypeName()=="RM Connector Variable") varDevice=true 
+                    if (device.getTypeName()=="RM Connector Variable") varDevice=true
+                    if (device.getTypeName()=="MQTT Text") textDevice=true
                 } 
     }
     else log ("Lookup failed for $device [$devType] in topicLink","KH")																   
 
     
     
-// LOOKUP for a device using my virtual drivers - no longer needed
+// LOOKUP for a device using my virtual drivers - no longer needed ??
+    /*
     if (!found) {
 	tempMap=atomicState.topicMap
 	// content=[topic: data.state, maxLevel: valueMax, stateON: data.stateON, stateOFF, data.stateOFF]
@@ -4136,26 +4163,28 @@ def LookupManual(evt) {  // only called from unhandled adhoc parse
 			devType='?'
 		}
 }
+*/
 // TODO I don't seem to set device= even if found - is that because I'm just recovering a name mapping ?     
 // LOOKUP for a virtual devices by id in allDevices
     if (!found) {
     tempMap=atomicState.Mappings
-    LookupID=tempMap[deviceID]
+    LookupID=tempMap[deviceID]            
     if (LookupID != null) {
         log ("***** Found  in NEW map ***** for "+ data.topic + "  ==  "  + LookupID.name, "TRACE")
+        log ("Attention: referencing allDevices !!", "KH")
         //attName = data.Topic - "_Topic"
         dev=LookupID  //this is not the same as 'found' below in that you cant dev.getData() but can found.getData()
         devID=LookupID.id
         devType="virtual"
         settings.allDevices.each { possDev -> // ToDo optimise this as currently searches ALL devices - should only sort virtuals
             if (possDev.getId() == LookupID.id) {
-                log ("Found in allDevices at $possDev for $LookupID.id with id: ${possDev.id}","DEBUG")
+                log ("Found in allDevices at $possDev for $LookupID.id with id: ${possDev.id}","WARN")
                 device = possDev
                 found=true
             }
         }
         if (!found) log ("Couldn't find this deviceID $deviceID in New Map", "INFO")
-            data3=device.getData()
+            data3=device.getData()  // device not valid ??
             if (data3['mqtt']=="true") {
                 
                 data3.each { key, value ->
@@ -4512,7 +4541,7 @@ def format (evt) {
 def dimEvent (evt) {
 	def data = parseJson(evt.data)
     //log ("event data: ${data}", "INFO")
-	log ("Received a dim event from ${evt.value} level ${data.level}", "DEBUG")
+    log ("Received a dim event from ${evt.value} level ${data.level} is ${data.type}", "KH")
 	child=getChildDevice("MQTT:homie_"+evt.value)
     //if (child==null) child=getChildDevice("MQTT:HA_"+evt.value)
     if (child==null) child=getChildDevice("MQTT:HA_[" + data.type+"]_"+evt.value)
@@ -4528,9 +4557,9 @@ def dimEvent (evt) {
 		}
 			if (child==null) return  
 	}
-    log  ("Got " + child + " [" + + child.getSupportedAttributes().size() + "] " + child.getSupportedAttributes(), "DEBUG")
+    log  ("Got " + child + " [" + + child.getSupportedAttributes().size() + "] " + child.getSupportedAttributes(), "KH")
     myMax = child.getDataValue("max_Level")   //TODO need to scale here
-	log ("Setting Child dim level to ${data.level}", "DEBUG")
+	log ("Setting Child dim level to ${data.level}", "KH")
     child.setLevel(data.level.toInteger(),1)
 }
 
@@ -5225,7 +5254,6 @@ if (DNI != null){
 				else log ("Unknown state value " + data.state +" - need to add to lookup","WARN")
 			}
 		}
-
     } 
 //Casey >        
     else if (data.cmd=="contact") {
@@ -5252,7 +5280,8 @@ if (DNI != null){
                    // }
 				}
 				else log ("Unknown state value " + data.state +" - need to add to lookup","WARN")
-		}		
+		    }
+        }
 		MQTTwindow = (settings?.windowshades)
 		log ("Window Shade Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","DEBUG")
         MQTTwindow.each {            
@@ -5277,13 +5306,28 @@ if (DNI != null){
 				}
 				else log ("Unknown state value " + data.state +" - need to add to lookup","WARN")
 			}
-				// DUPLICATED TODO combine this as one method for all
+        }
+
+	}
+
+
+
+	else if (data.cmd=="battery"||data.cmd=="motion"||data.cmd=="temperature") {
+		log ("Trying to 'set' a sensor value ${data.cmd} for ${evt.value}", "WARN")
+		log ("   ... only 'onoff', 'dim', 'color' and 'color-temperature' are settable currently", "WARN")
+	}
+	else if (data.cmd=="valve") {
+        MQTTvalve = (settings?.valves)
+		log ("Valve Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","DEBUG")
+        MQTTvalve.each {            
+		 if (it.displayName==matchName) {
+                // DUPLICATED TODO combine this as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
-				CloseValues="close"
+				CloseValues="closed"
 				OpenValues="open"
 				if (CloseValues.contains(data.state.toLowerCase()))
 				{
-					//if (devType == "system")
+					// if (devType == "system")
 					it.close()  // think can only be a system type here
 					//else device.toON()
 				}
@@ -5296,14 +5340,9 @@ if (DNI != null){
                    // }
 				}
 				else log ("Unknown state value " + data.state +" - need to add to lookup","WARN")
-			}
-		}
-
-    }
-	else if (data.cmd=="battery"||data.cmd=="motion"||data.cmd=="temperature") {
-		log ("Trying to 'set' a sensor value ${data.cmd} for ${evt.value}", "WARN")
-		log ("   ... only 'onoff', 'dim', 'color' and 'color-temperature' are settable currently", "WARN")
-	}    
+         }
+        }
+	}
     else if (data.cmd=="heating-setpoint"||data.cmd=="cooling-setpoint"||data.cmd=="mode"||data.cmd=="fanmode") {  // Thermostat temporary handler shouldnt be in sensors
            	thermDev=(settings?.thermostats)
 	        if (thermDev != null){
