@@ -2073,7 +2073,7 @@ def HADiscoveryAdvertise (name, type="none", category="none", id='0', payON="tru
         pValTemp = ',"value_template":"{{ value }}"'
         payload='{'+pName+pAvail+pAvailPay+pNotAvailPay+pUID+pState+pCmd+pUOM+pOPEN+pSTOP+pCLOSE+pIcon+pDev+pValTemp+pID+'}'
     }   
-    	else if (type=="alarm_control_panel") {
+    else if (type=="alarm_control_panel") {
             sAlarmTopic="homie/${atomicState.normHubName}/${normalize(name)}/securitymode"  // the suffix is not used here
 			pState= ',"state_topic":"' + sAlarmTopic+'"'
 			pCmd = ',"command_topic":"' + sAlarmTopic+'/set"'
@@ -2084,8 +2084,9 @@ def HADiscoveryAdvertise (name, type="none", category="none", id='0', payON="tru
 			pCodeArm = ""
 			pCodeDisarm = ""
 			pCodeArmTemplate = ""
+            pKeyCode=""
 			if (mqttKeypadMode == "No control of keypad" || mqttKeypadMode == "No Keycode needed") {
-			    pCodeArm = ',"code_arm_required": "false"'
+			    pCodeArm = ',"code_arm_required": "false"'                
 			}
 			else {
 			    if (mqttKeypadMode == "Keycode to Arm only") {
