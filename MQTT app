@@ -2753,75 +2753,89 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 		UOM=''
     	if (settings?.homiePublish) {  //TODO use case rather than if else if
 		    sTopic="homie/${atomicState.normHubName}/${normName}"
-        if (!atomicState.suppress){
+//        if (!atomicState.suppress){
             if (xType=='temperature'){
 				category='measure-temperature'
+                 HAtype="sensor"
+              if (!atomicState.suppress){
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"float",1,true,atomicState.suppress)
 				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)
 				if ((tempUnits=="Fahrenheit °F")||(tempUnits=="Fahrenheit x.x°F")) UOM="°F" else UOM="°C"
 				mqtt.publishMsg (sTopic+'/'+category+'/$format','-460:9999',1,true,atomicState.suppress)
 				mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true,atomicState.suppress)
-				HAtype="sensor"
+              }
 			}
             if (xType=='humidity'){
 				category='measure-humidity'
+                HAtype="sensor"
+              if (!atomicState.suppress){
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"integer",1,true,atomicState.suppress)
 				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)
                 UOM="%"
 				mqtt.publishMsg (sTopic+'/'+category+'/$format','0:100',1,true,atomicState.suppress)
 				mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true,atomicState.suppress)
-				HAtype="sensor"
+              }
 			}
 			else if (xType=="heatingSetpoint"){  //TODO combine above
 				category='heating-setpoint'
+                HAtype="sensor"
                 settable="true"
+              if (!atomicState.suppress){
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"float",1,true,atomicState.suppress)
 				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)
 				if ((tempUnits=="Fahrenheit °F")||(tempUnits=="Fahrenheit x.x°F")) UOM="°F" else UOM="°C"
 				mqtt.publishMsg (sTopic+'/'+category+'/$format','0:200',1,true,atomicState.suppress)
                 mqtt.publishMsg (sTopic+'/'+category+'/$settable',"true",1,true,atomicState.suppress)
 				mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true,atomicState.suppress)
-				HAtype="sensor"
+              }
 			}
             else if (xType=="coolingSetpoint"){  //TODO combine above
 				category='cooling-setpoint'
+                HAtype="sensor"
                 settable="true"
+              if (!atomicState.suppress){
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"float",1,true,atomicState.suppress)
 				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)
 				if ((tempUnits=="Fahrenheit °F")||(tempUnits=="Fahrenheit x.x°F")) UOM="°F" else UOM="°C"
 				mqtt.publishMsg (sTopic+'/'+category+'/$format','0:200',1,true,atomicState.suppress)
 				mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true,atomicState.suppress)
-				HAtype="sensor"
+              }
 			}
             else if (xType=="thermostatMode"){  //TODO combine above
 				category='mode'
+                HAtype="sensor"  
                 settable="true"
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"enum",1,true,atomicState.suppress)
                 //mqtt.publishMsg (sTopic+'/'+category+'/$mode',state.toString(),1,true)
 				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)
 				//if ((tempUnits=="Fahrenheit °F")||(tempUnits=="Fahrenheit x.x°F")) UOM="°F" else UOM="°C"
 				//mqtt.publishMsg (sTopic+'/'+category+'/$format','0:200',1,true)
-				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)
-				HAtype="sensor"    
+				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)  
 			}
             else if (xType=="thermostatModes"){  //TODO combine above
 				category='mode'
+                HAtype="sensor"
                 settable="true"
+              if (!atomicState.suppress){
 				//mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"enum",1,true)
                 // regex to strip leading [ and trailing ] and ,_ change to ,  
                 //choices=choices.replaceAll(", ", ',')
+  //NB: State has spaces in the values after each ,
                 mqtt.publishMsg (sTopic+'/'+category+'/$format',state.toString(),1,true,atomicState.suppress)
                 //log ("State for modes is ${sTopic} ** ${category} ** ${state} ${state.toString()}  ", "DEBUG")
-                mqtt.publishMsg (sTopic+'/'+"state"+'/$format',"${state.toString()},idle",1,true,atomicState.suppress)
+                s= state.toString()
+                s=s.substring(0, s.length() - 1)+", idle]"
+                mqtt.publishMsg (sTopic+'/'+"state"+'/$format',s,1,true,atomicState.suppress)
 				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)
 				//if ((tempUnits=="Fahrenheit °F")||(tempUnits=="Fahrenheit x.x°F")) UOM="°F" else UOM="°C"
 				//mqtt.publishMsg (sTopic+'/'+category+'/$format',state.toString(),1,true)
 				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)
+              }
                 state=null
-				HAtype="sensor"
 			}
             else if (xType=="thermostatOperatingState"){  //TODO combine above
 				category='state'
+                HAtype="sensor"
                 settable="false"
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"enum",1,true,atomicState.suppress)
                 //mqtt.publishMsg (sTopic+'/'+category+'/state',state.toString(),1,true)
@@ -2829,10 +2843,11 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 				//if ((tempUnits=="Fahrenheit °F")||(tempUnits=="Fahrenheit x.x°F")) UOM="°F" else UOM="°C"
 				//mqtt.publishMsg (sTopic+'/'+category+'/$format',state.toString(),1,true)
 				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)
-				HAtype="sensor"
+
             }        
             else if (xType=="thermostatFanMode"){  //TODO combine above
 				category='fanmode'
+                HAtype="sensor"
                 settable="true"
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"enum",1,true,atomicState.suppress)
                 //mqtt.publishMsg (sTopic+'/'+category+'/$mode',state.toString(),1,true)
@@ -2840,16 +2855,16 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 				//if ((tempUnits=="Fahrenheit °F")||(tempUnits=="Fahrenheit x.x°F")) UOM="°F" else UOM="°C"
 				//mqtt.publishMsg (sTopic+'/'+category+'/$format','0:200',1,true)
 				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)
-				HAtype="sensor"
+
 			}
             else if (xType=="thermostatFanModes"){
                 category='fanmode'
+                HAtype="sensor" 
                 settable="true"
 				//mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"enum",1,true)                
                 // regex to strip leading [ and trailing ] and ,_ change to ,
                 //string=string.replaceAll("^\[|, |]$", ',')
                 //choices=choices.replaceAll(", ", ',')
- 
                 mqtt.publishMsg (sTopic+'/'+category+'/$format',state.toString(),1,true,atomicState.suppress)
                 //log ("State for modes is ${sTopic} ** ${category} ** ${state} ${state.toString()}  ", "DEBUG")
                 //mqtt.publishMsg (sTopic+'/'+"state"+'/$format',"${state.toString()},idle",1,true)
@@ -2858,7 +2873,6 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 				//mqtt.publishMsg (sTopic+'/'+category+'/$format',state.toString(),1,true)
 				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)
                 state=null
-				HAtype="sensor"     
             } 
 			
             else {
@@ -2873,7 +2887,7 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 	        //pauseExecution(2000)// TODO need to adjust based on experience getTopic takes ~1800
 	        //mqtt.getTopic (sTopic+'/$properties')   // need to append categories to existing ones
                 addProperty(sTopic,category)
-          
+              if (!atomicState.suppress){
 			    mqtt.publishMsg (sTopic+'/$name',name.toString(),1,true)   
 			    mqtt.publishMsg (sTopic+'/$type',"thermostat",1,true,atomicState.suppress)
                 if (device!=null) mqtt.publishMsg (sTopic+'/driver',device.typeName,1,true,atomicState.suppress)
@@ -2882,6 +2896,7 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 			    //mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"float",1,true)
 			    mqtt.publishMsg (sTopic+'/'+category+'/$retained',(settings?.homieStatesPersist).toString(),1,true,atomicState.suppress)
 			    //mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)
+              }
         }
                 if (state!=null) {
                     if(tempUnits=="Celsius x.x°C" && category=="measure-temperature") state = state.toFloat().round(1)
@@ -2897,7 +2912,7 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 		else  HADiscoveryAdvertise(name,HAtype,category,id,payON,payOFF,'',UOM)  // will only be called once
 	}
 	else if (settings?.HADiscovery) log ("HADiscovery thermostat discarded for ${name}","DEBUG")
-        }
+//        }
 }
 
 def keypadDevices(evt, name=null, type=null, state=null, id=0, multiple=false) { // subs must be used in HA discovery as device must be separated into multiple entities
