@@ -117,10 +117,11 @@ preferences {  // can't use atomicState vars in this section
                 input "sensors", "capability.*",hideWhenEmpty: true, title: "<b>List devices Capabilities and Attributes to Hubitat Topic</b>", multiple: true, required: false
                 //TODO add remaining sensors type (as and if requested)
 			}	
-                
+/*                
             section ("<b>IMPORTANT: Enable all your devices for app access</b>",hideWhenEmpty: true, hideable: true, hidden: true) {
-                input "allDevices", "capability.*",hideWhenEmpty: true, multiple: true, required: true, title: "<b>Required ></b> Please enable the first option <b>Toggle All on/off </b> - to select all devices", submitOnChange: false                
+                input "allDevices", "capability.*",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Required ></b> Please enable the first option <b>Toggle All on/off </b> - to select all devices", submitOnChange: false                
             }
+*/
 
                 
 
@@ -1469,9 +1470,11 @@ def lookupHandler(device,capability,attribute,handlerReq='none')
     subscribe(device,attribute,handler)
 }
 
+/*
 def allDevices(evt) {  // dummy handler for now
     log ("allDevices() was called with ${evt.name}  ${evt.value}  ${evt.displayName}","KH")
 }
+*/
 
 def wipe() { 
 	atomicState.onoffDevices=[] 
@@ -1719,6 +1722,7 @@ def synchDevices(evt) {
     devLoop (settings?.powersensors,"power","sensorDevices")
     devLoop (settings?.voltagesensors,"voltage","sensorDevices")
     // thermostats
+    devLoop (settings?.thermostats,"temperature","thermostatDevices")
     devLoop (settings?.thermostats,"heatingSetpoint","thermostatDevices")
     devLoop (settings?.thermostats,"coolingSetpoint","thermostatDevices")
     devLoop (settings?.thermostats,"thermostatMode","thermostatDevices")
@@ -1782,6 +1786,7 @@ def mqttOnline(evt) {
 def maptopics2() {    
 }
 
+/*
 def getDeviceObj(id) {
     def found
     settings.allDevices.each { device -> 
@@ -1792,7 +1797,7 @@ def getDeviceObj(id) {
     }
     return found
 }
-
+*/
 
 def mapTopics(evt) {  	
 	def tempMap=atomicState.topicMap
@@ -1938,7 +1943,7 @@ def HADiscoveryAdvertise (name, type="none", category="none", id='0', payON="tru
         return
     }
 	normName = normalize(name+nameSuffix) 
-	log ("Advertising ${name} device ${type} ${category} to HA with ID $id","DEBUG")
+	log ("Advertising ${name} device ${type} ${category} to HA with ID $id","ERROR")
     if (id==0) log ("The ID for device $name $type was 0","WARN")
 	if (atomicState.nameMap.containsValue(name)) log ("Found in nameMap" + name, "DEBUG") else log ("NOT Found in nameMap" + name, "DEBUG")
 		sTopic="homie/${atomicState.normHubName}/${normName}"+'/onoff'   //TODO tidy
@@ -1957,7 +1962,121 @@ def HADiscoveryAdvertise (name, type="none", category="none", id='0', payON="tru
     else log ("ID is 0 for device $name  $type","WARN")
 		pON = ',"payload_on":"true"'  //default for booleans in homie
 		pOFF = ',"payload_off":"false"'
-		if (type=="switch"|type=="light") {
+    
+    
+    if (type=="climate") {
+        pFanMode=''
+        pFanCmd=''
+        pFanModes=''
+        pMode=''
+        pModeCmd=''
+        pModes=''
+        pSetpointCmd=''
+        pHSetpointCmd=''
+        pCSetpointCmd=''
+        
+        pDevClass = ',"device_class": "climate"'
+        pCurrTemp = ',"current_temperature_topic": "homie/development/v2thermostat/measure-temperature"'
+        
+        pSetpoint = ',"temperature_state_topic": "homie/development/v2thermostat/cooling-setpoint"'
+        pSetpointCmd = ',"temperature_command_topic": "homie/development/v2thermostat/cooling-setpoint/set"'
+        
+        pHSetpoint = ',"temperature_high_state_topic": "homie/development/v2thermostat/heating-setpoint"'
+        pHSetpointCmd = ',"temperature_high_command_topic": "homie/development/v2thermostat/heating-setpoint/set"'
+
+        pCSetpoint = ',"temperature_low_state_topic": "homie/development/v2thermostat/cooling-setpoint"'
+        pCSetpointCmd = ',"temperature_low_command_topic": "homie/development/v2thermostat/cooling-setpoint/set"'
+
+
+
+        pFanMode = ',"fan_mode_state_topic": "homie/development/v2thermostat/fanmode"'
+        pFanCmd = ',"fan_mode_command_topic": "homie/development/v2thermostat/fanmode/set"'
+        //pFanModes = ',"fan_modes": "homie/development/v2thermostat/fanmodes/$format"'
+      
+        pMode = ',"mode_state_topic": "homie/development/v2thermostat/mode"'
+        pModeCmd = ',"mode_command_topic": "homie/development/v2thermostat/mode/set"'
+        //pModes = ',"modes": "homie/development/v2thermostat/modes/$format"'
+        //pModes=',"modes": "["auto","off","cool","heat"]"'
+        
+
+
+       // [“auto”, “off”, “cool”, “heat”, “dry”, “fan_only”]
+        
+        pState = ',"state_topic":"'+ sTopic + '"'
+        pState = ''
+        pON=''
+        pOFF=''
+        pUOM=''
+        //pON
+        //pOFF
+        //pIcon
+        //pDev
+        //pValTemp
+        //pID 
+        pValTemp = ',"value_template":"{{ value | round(0) }}"'  // acts as convert to int
+        pValTemp=''
+		if (category == "measure-temperature")  { 
+            return
+		    pDevClass = ',"device_class": "temperature"'
+		    if (tempUnits=="Celsius x.x°C")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+            else if (tempUnits=="Fahrenheit x.x°F")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+		}
+		else if (category == "measure-humidity")  { 
+            return
+		    pDevClass = ',"device_class": "humidity"'
+		    //if (tempUnits=="Celsius x.x°C")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+            //else if (tempUnits=="Fahrenheit x.x°F")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+		}
+        else if (category == "heating-setpoint")  { 
+		    //pDevClass = ',"device_class": "hsetpoint"'
+            //pDevClass = ',"device_class": "hvac"'
+            pDevClass=''
+		    if (tempUnits=="Celsius x.x°C")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+            else if (tempUnits=="Fahrenheit x.x°F")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+		}
+        else if (category == "cooling-setpoint")  {
+            return
+		    pDevClass = ',"device_class": "csetpoint"'
+		    if (tempUnits=="Celsius x.x°C")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+            else if (tempUnits=="Fahrenheit x.x°F")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+		}
+        else if (category == "mode")  {
+            return
+		    pDevClass = ',"device_class": "mode"'
+		    //if (tempUnits=="Celsius x.x°C")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+            //else if (tempUnits=="Fahrenheit x.x°F")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+		}
+        else if (category == "modes")  { 
+            return
+		    pDevClass = ',"device_class": "modes"'
+		    //if (tempUnits=="Celsius x.x°C")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+            //else if (tempUnits=="Fahrenheit x.x°F")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+		}
+        else if (category == "state")  { 
+            return
+		    pDevClass = ',"device_class": "state"'
+		    //if (tempUnits=="Celsius x.x°C")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+            //else if (tempUnits=="Fahrenheit x.x°F")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+		}
+        else if (category == "fanmode")  { 
+            return
+		    pDevClass = ',"device_class": "fanmode"'
+		    //if (tempUnits=="Celsius x.x°C")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+            //else if (tempUnits=="Fahrenheit x.x°F")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+		}        
+        else if (category == "fanmodes")  { 
+            return
+		    pDevClass = ',"device_class": "fanmodes"'
+		    //if (tempUnits=="Celsius x.x°C")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+            //else if (tempUnits=="Fahrenheit x.x°F")	pValTemp = ',"value_template":"{{ value | round(1) }}"'
+		}
+        else {
+            log("Category Was " + category , "KH")
+            return
+        }
+        payload='{'+pName+pAvail+pAvailPay+pNotAvailPay+pUID+pDevClass+pState+pUOM+pON+pOFF+pIcon+pValTemp+pID+pCurrTemp+pSetpoint+pSetpointCmd+pHSetpoint+pHSetpointCmd+pCSetpoint+pCSetpointCmd+pFanMode+pFanCmd+pFanModes+pMode+pModeCmd+pModes+pDev+'}'        
+    } 
+	else if (type=="switch"|type=="light") {
             sDimTopic="homie/${atomicState.normHubName}/${normName}"+'/dim'
 		    sColorTopic="homie/${atomicState.normHubName}/${normName}"+'/color'
 			pState = ',"state_topic":"'+ sTopic + '"'
@@ -2756,7 +2875,7 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 //        if (!atomicState.suppress){
             if (xType=='temperature'){
 				category='measure-temperature'
-                 HAtype="sensor"
+                 HAtype="climate"
               if (!atomicState.suppress){
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"float",1,true,atomicState.suppress)
 				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)
@@ -2767,7 +2886,7 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 			}
             if (xType=='humidity'){
 				category='measure-humidity'
-                HAtype="sensor"
+                HAtype="climate"
               if (!atomicState.suppress){
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"integer",1,true,atomicState.suppress)
 				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)
@@ -2778,7 +2897,7 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 			}
 			else if (xType=="heatingSetpoint"){  //TODO combine above
 				category='heating-setpoint'
-                HAtype="sensor"
+                HAtype="climate"
                 settable="true"
               if (!atomicState.suppress){
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"float",1,true,atomicState.suppress)
@@ -2791,7 +2910,7 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 			}
             else if (xType=="coolingSetpoint"){  //TODO combine above
 				category='cooling-setpoint'
-                HAtype="sensor"
+                HAtype="climate"
                 settable="true"
               if (!atomicState.suppress){
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"float",1,true,atomicState.suppress)
@@ -2803,7 +2922,7 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 			}
             else if (xType=="thermostatMode"){  //TODO combine above
 				category='mode'
-                HAtype="sensor"  
+                HAtype="climate"  
                 settable="true"
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"enum",1,true,atomicState.suppress)
                 //mqtt.publishMsg (sTopic+'/'+category+'/$mode',state.toString(),1,true)
@@ -2813,8 +2932,8 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 				//mqtt.publishMsg (sTopic+'/'+category+'/$unit',UOM,1,true)  
 			}
             else if (xType=="thermostatModes"){  //TODO combine above
-				category='mode'
-                HAtype="sensor"
+				category='modes'
+                HAtype="climate"
                 settable="true"
               if (!atomicState.suppress){
 				//mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"enum",1,true)
@@ -2835,7 +2954,7 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 			}
             else if (xType=="thermostatOperatingState"){  //TODO combine above
 				category='state'
-                HAtype="sensor"
+                HAtype="climate"
                 settable="false"
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"enum",1,true,atomicState.suppress)
                 //mqtt.publishMsg (sTopic+'/'+category+'/state',state.toString(),1,true)
@@ -2847,7 +2966,7 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
             }        
             else if (xType=="thermostatFanMode"){  //TODO combine above
 				category='fanmode'
-                HAtype="sensor"
+                HAtype="climate"
                 settable="true"
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"enum",1,true,atomicState.suppress)
                 //mqtt.publishMsg (sTopic+'/'+category+'/$mode',state.toString(),1,true)
@@ -2858,8 +2977,8 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
 
 			}
             else if (xType=="thermostatFanModes"){
-                category='fanmode'
-                HAtype="sensor" 
+                category='fanmodes'
+                HAtype="climate" 
                 settable="true"
 				//mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"enum",1,true)                
                 // regex to strip leading [ and trailing ] and ,_ change to ,
@@ -2904,10 +3023,12 @@ def thermostatDevices(evt, name=null, type=null, state=null, id=0, multiple=fals
                     mqtt.publishMsg (sTopic+'/'+category,state.toString(),1,settings?.homieStatesPersist)  // <<<<<   This publishes the actual event value
                 }	
 	// payON and payOFF vary a lot for sensors so need extra params
-    checkNodes(6,name)	 
+    checkNodes(6,name)	
+    payON=''
+    payOFF=''
 	if (evt==null) {  // this will limit HADiscovery to startup or 'upon request' for devices
 		if (multiple) {
-			HADiscoveryAdvertise(name,HAtype,category,payON,id,payOFF,nameSuffix,UOM)  // these are created as sub topics
+			HADiscoveryAdvertise(name,HAtype,category,id,payON,payOFF,nameSuffix,UOM)  // these are created as sub topics
 		}
 		else  HADiscoveryAdvertise(name,HAtype,category,id,payON,payOFF,'',UOM)  // will only be called once
 	}
@@ -4190,6 +4311,7 @@ def LookupManual(evt) {  // only called from unhandled adhoc parse  (usually vir
         dev=LookupID  //this is not the same as 'found' below in that you cant dev.getData() but can found.getData()
         devID=LookupID.id
         devType="virtual"
+/*  // no longer using allDevices        
         settings.allDevices.each { possDev -> // ToDo optimise this as currently searches ALL devices - should only sort virtuals
             if (possDev.getId() == LookupID.id) {
                 log ("Found in allDevices at $possDev for $LookupID.id with id: ${possDev.id}","WARN")
@@ -4198,7 +4320,8 @@ def LookupManual(evt) {  // only called from unhandled adhoc parse  (usually vir
             }
         }
         if (!found) log ("Couldn't find this deviceID $deviceID in New Map", "INFO")
-            data3=device.getData()  // device not valid ??
+*/
+        data3=device.getData()  // device not valid ??
             if (data3['mqtt']=="true") {
                 
                 data3.each { key, value ->
