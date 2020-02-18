@@ -104,6 +104,7 @@ preferences {  // can't use atomicState vars in this section
                 input "relayswitches", "capability.relaySwitch",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Relay Switches</b>", submitOnChange: false
                 input "shocksensors", "capability.shockSensor",hideWhenEmpty: true, title: "<b>Shock sensors</b>", multiple: true, required: false
                 input "smokesensors", "capability.smokeDetector",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Smoke detectors</b>", submitOnChange: false
+                input "speechSynthesis", "capability.speechSynthesis",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Speech Synthesis</b>", submitOnChange: false
                 input "switches", "capability.switch",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Switches</b>", submitOnChange: false
                 input "tempsensors", "capability.temperatureMeasurement",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Temperature sensors</b>", submitOnChange: false
 				input "thermostats", "capability.thermostat",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Thermostats</b>", submitOnChange: false
@@ -1305,6 +1306,7 @@ def deviceSubscribes(count) {
         count = registerAll (keypads,count,'keypadDevices')
         count = registerAll (outlets,count,'otherDevices')
         count = registerAll (relayswitches,count,'otherDevices')
+        count = registerAll (speechSynthesis,count,'audioDevices')
         count = registerAll (valves,count,'otherDevices')
         count = registerAll (windowshades,count,'otherDevices')
     atomicState.delay=0
@@ -1699,6 +1701,7 @@ def synchDevices(evt) {
     devLoop (settings?.keypads,"securityKeypad","keypadDevices")
     devLoop (settings?.outlets,"outlet","otherDevices")
     devLoop (settings?.relayswitches,"relaySwitch","otherDevices")
+    devLoop (settings?.speechSynthesis,"speech","audioDevices")
     devLoop (settings?.valves,"valve","otherDevices")
     devLoop (settings?.watersensors,"water","sensorDevices")
     devLoop (settings?.globVars,"variable","otherDevices")
@@ -1943,7 +1946,7 @@ def HADiscoveryAdvertise (name, type="none", category="none", id='0', payON="tru
         return
     }
 	normName = normalize(name+nameSuffix) 
-	log ("Advertising ${name} device ${type} ${category} to HA with ID $id","ERROR")
+	log ("Advertising ${name} device ${type} ${category} to HA with ID $id","DEBUG")
     if (id==0) log ("The ID for device $name $type was 0","WARN")
 	if (atomicState.nameMap.containsValue(name)) log ("Found in nameMap" + name, "DEBUG") else log ("NOT Found in nameMap" + name, "DEBUG")
 		sTopic="homie/${atomicState.normHubName}/${normName}"+'/onoff'   //TODO tidy
@@ -1996,7 +1999,7 @@ def HADiscoveryAdvertise (name, type="none", category="none", id='0', payON="tru
         pMode = ',"mode_state_topic": "homie/development/v2thermostat/mode"'
         pModeCmd = ',"mode_command_topic": "homie/development/v2thermostat/mode/set"'
         //pModes = ',"modes": "homie/development/v2thermostat/modes/$format"'
-        //pModes=',"modes": "["auto","off","cool","heat"]"'
+        //pModes=',"modes": "[“auto”, “off”, “cool”, “heat”]"'
         
 
 
@@ -2344,7 +2347,7 @@ def subscribeVirtuals() {
                     myData=dev.getData()
                     if (myData != null) myData.each { dat ->
                         if (dat.key.endsWith("_Topic")) {
-                            log ("Virtual sub [$dev] " + dat.value,"KH")
+                            log ("Virtual sub [$dev] " + dat.value,"TRACE")
                             mqtt.subscribeTopic(dat.value)
                             temp[dat.value]=dev.deviceNetworkId  
                         }
@@ -3139,6 +3142,30 @@ def keypadDevices(evt, name=null, type=null, state=null, id=0, multiple=false) {
 def garageDevices(evt, name=null, type=null, state=null, id=0, multiple=false) {  // subs must be used in HA discovery as device must be separated into multiple entities 
     id=99998888
     otherdevices(evt, name, type, state, id, multiple)
+}
+
+def audioDevices(evt, name=null, type=null, state=null, id=0, multiple=false) {
+            if (!atomicState.suppress){
+                sTopic="homie/${atomicState.normHubName}/${normName}"
+                mqtt.publishMsg (sTopic+'/$properties','speech',1,true,atomicState.suppress)
+                mqtt.publishMsg (sTopic+'/'+category+'/$datatype','text',1,true,atomicState.suppress)
+                mqtt.publishMsg (sTopic+'/'+category+'/$settable','true',1,true,atomicState.suppress)
+                mqtt.publishMsg (sTopic+'/'+category+'/$retained','true',1,true,atomicState.suppress)
+                mqtt.publishMsg (sTopic+'/'+category+'/$name',evt.displayName,1,true,atomicState.suppress)
+            }
+    if (evt.name=="trackDescription") {
+        len=evt.value.length()
+        if (len>20){
+            checkTTS = evt.value.substring (len-8,len)
+            if (checkTTS=="from TTS") {
+                log ("Just announced " + evt.value.substring(0, evt.value.length() - 20),"TRACE")
+                normName = normalize(evt.displayName)
+                category="speech"
+                sTopic="homie/${atomicState.normHubName}/${normName}"
+                mqtt.publishMsg (sTopic+'/'+category,evt.value.substring(0, evt.value.length() - 20),1,true)
+            }
+        }
+    }
 }
 
     
@@ -5111,7 +5138,7 @@ if (DNI != null){
 		MQTTswitches = (settings?.switches)
 		log ("Switch Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","TRACE")
 		MQTTswitches.each {  	
-			if (it.displayName==matchName){	
+			if (normalize(it.displayName)==matchName){	
 				// DUPLICATED TODO combine this as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
 				OnValues="on,true,yes,1"  
@@ -5136,7 +5163,7 @@ if (DNI != null){
 		MQTTdimmers = (settings?.dimmers)
 		log ("Dimmer Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","TRACE")
 		MQTTdimmers.each {  
-			if (it.displayName==matchName){
+			if (normalize(it.displayName)==matchName){
 			// TODO combine this below as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
 				OnValues="on,true,yes,1"  
@@ -5160,7 +5187,7 @@ if (DNI != null){
 		MQTTRGB = (settings?.colour)
 		// log ("ColourC Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","TRACE")
 		MQTTRGB.each { 
-		if (it.displayName==matchName){
+		if (normalize(it.displayName)==matchName){
 			// TODO combine this below as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
 				OnValues="on,true,yes,1"  
@@ -5185,7 +5212,7 @@ if (DNI != null){
 		MQTTRGBT = (settings?.colourT)
     	//log ("ColourT Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","TRACE")
 		MQTTRGBT.each {  
-		if (it.displayName==matchName){
+		if (normalize(it.displayName)==matchName){
 			// TODO combine this below as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
 				OnValues="on,true,yes,1"  
@@ -5214,7 +5241,7 @@ if (DNI != null){
 			log ("Dimmer Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","TRACE")
 			MQTTdimmers = (settings?.dimmers)
 			MQTTdimmers.each {
-				if (it.displayName==matchName){
+				if (normalize(it.displayName)==matchName){
 					log ("Found " + it.displayName, "TRACE")
 					it.setLevel(intLevel,1)
                     return
@@ -5222,21 +5249,21 @@ if (DNI != null){
 			}
 			adhoc=(settings?.adhoc) 
 			adhoc.each { 
-				if (it.displayName==matchName){ 
+				if (normalize(it.displayName)==matchName){ 
 				it.setLevel(intLevel,1)
                 return
 				}
 			}
 			MQTTRGB = (settings?.colour)
 			MQTTRGB.each { 
-				if (it.displayName==matchName){
+				if (normalize(it.displayName)==matchName){
 			    it.setLevel(intLevel,1)
                 return
 				}
 			}
             MQTTRGB = (settings?.colourT)
 			MQTTRGB.each { 
-				if (it.displayName==matchName){
+				if (normalize(it.displayName)==matchName){
 			    it.setLevel(intLevel,1)
                 return
 				}
@@ -5246,7 +5273,7 @@ if (DNI != null){
 	else if (data.cmd=="color") {		
 			MQTTRGB = (settings?.colour)
 			MQTTRGB.each {
-				if (it.displayName==matchName){
+				if (normalize(it.displayName)==matchName){
                     if (data.state[0]=='#') {
                         try {
                         RGB=hubitat.helper.ColorUtils.hexToRGB(data.state)
@@ -5315,7 +5342,7 @@ if (DNI != null){
 	else if (data.cmd=="hsv") {
 			MQTTRGB = (settings?.colour)
 			MQTTRGB.each {
-				if (it.displayName==matchName){
+				if (normalize(it.displayName)==matchName){
 					it.setSaturation(data.payload[1].toInteger())
 					it.setHue(data.payload[0].toInteger())
 					it.setLevel(data.payload[2].toInteger())
@@ -5325,7 +5352,7 @@ if (DNI != null){
 	else if (data.cmd=="hue") {
 			MQTTRGB = (settings?.colour)
 			MQTTRGB.each {
-				if (it.displayName==matchName){
+				if (normalize(it.displayName)==matchName){
 					it.setHue(data.payload[0].toInteger())
 				}
 			}
@@ -5333,7 +5360,7 @@ if (DNI != null){
 	else if (data.cmd=="level") {  // currently only searching colour bulbs for this as it's a RGB event
 			MQTTRGB = (settings?.colour)
 			MQTTRGB.each { 
-				if (it.displayName==matchName){
+				if (normalize(it.displayName)==matchName){
 					it.setLevel(data.payload[0].toInteger())
 				}
 			}
@@ -5341,7 +5368,7 @@ if (DNI != null){
 	else if (data.cmd=="saturation") {
 			MQTTRGB = (settings?.colour)
 			MQTTRGB.each { 
-				if (it.displayName==matchName){
+				if (normalize(it.displayName)==matchName){
 					it.setSaturation(data.payload[0].toInteger())
 				}
 			}
@@ -5349,7 +5376,7 @@ if (DNI != null){
 	else if (data.cmd=="color-temperature") {  // This is from the homie topic       //TOD these on homie are normalised names - need to match as such i.e. as in thermostats below TODO BUG ??
 			MQTTRGBT = (settings?.colourT)
 			MQTTRGBT.each { 
-				if (it.displayName==matchName){
+				if (normalize(it.displayName)==matchName){
                     int cKelvin=data.state.toInteger()
                     int cMired=0
                     if (cKelvin>1000) cMired=(int)1000000/cKelvin // was Kelvin
@@ -5369,7 +5396,7 @@ if (DNI != null){
 		MQTTlocks = (settings?.locks)
 		log ("Lock Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","TRACE")
 		MQTTlocks.each {   
-			if (it.displayName==matchName){
+			if (normalize(it.displayName)==matchName){
 				// DUPLICATED TODO combine this as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
 				LockValues="true"
@@ -5397,7 +5424,7 @@ if (DNI != null){
 		MQTTgarage = (settings?.garagedoors)
 		log ("Garage Door Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","DEBUG")
 		MQTTgarage.each {            
-			if (it.displayName==matchName){
+			if (normalize(it.displayName)==matchName){
          	    // DUPLICATED TODO combine this as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
 				CloseValues="close"
@@ -5422,7 +5449,7 @@ if (DNI != null){
 		MQTTwindow = (settings?.windowshades)
 		log ("Window Shade Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","DEBUG")
         MQTTwindow.each {            
-		 if (it.displayName==matchName) {
+		 if (normalize(it.displayName)==matchName) {
 			    // DUPLICATED TODO combine this as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
 				CloseValues="close"
@@ -5457,7 +5484,7 @@ if (DNI != null){
         MQTTvalve = (settings?.valves)
 		log ("Valve Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","DEBUG")
         MQTTvalve.each {            
-		 if (it.displayName==matchName) {
+		 if (normalize(it.displayName)==matchName) {
                 // DUPLICATED TODO combine this as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
 				CloseValues="closed"
@@ -5484,7 +5511,7 @@ if (DNI != null){
            	thermDev=(settings?.thermostats)
 	        if (thermDev != null){
 		        thermDev.each{                 
-                    if (it.displayName==matchName) {
+                    if (normalize(it.displayName)==matchName) {
                         //log ("Changing ${data.cmd} of ${it.name} to ${data.state}","ERROR")                        
                         if (data.cmd=="heating-setpoint"){
                             Float setTemp = data.state.toFloat()  // string seemed to error -- just rechecking
@@ -5508,7 +5535,7 @@ if (DNI != null){
 // >> @jwilliams
     	Keypads = (settings?.keypads)
 			Keypads.each {
-				 if (it.displayName==matchName) {
+				 if (normalize(it.displayName)==matchName) {
 					setStatus=""
 					ArmValues="armed night, armed home, armed away"
                     if (ArmValues.contains(data.state.toLowerCase())) {		
@@ -5546,17 +5573,28 @@ if (DNI != null){
     else if (data.cmd=="variable"){
        gVariables =(settings?.gVars)
             gVariables.each {
-				if (it.displayName==matchName){
+				if (normalize(it.displayName)==matchName){
                   it.setVariable (data.state)
 				}
 			}
        gVariables =(settings?.globVars)
             gVariables.each {
-				if (it.displayName==matchName){
+				if (normalize(it.displayName)==matchName){
                   it.setVariable (data.state)
 				}
 			}   
     }
+    else if (data.cmd=="speech"){
+        speechDev=(settings?.speechSynthesis)
+	        if (speechDev != null){
+		        speechDev.each{
+                    if (normalize(it.displayName)==matchName) {
+                      it.speak(data.state,30) 
+                    }
+                }
+            }
+    }
+        
 	else log ("No matching devices with this command available for ${data.cmd} for ${evt.value}", "WARN")
 }
 // BELOW IS NOT FULLY  WORKING YET SO USING ABOVE STILL (WIP)
