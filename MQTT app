@@ -98,13 +98,14 @@ preferences {  // can't use atomicState vars in this section
                 input "keypads", "capability.securityKeypad",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Keypads</b>", submitOnChange: false
                 input "locks", "capability.lock",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Locks</b>", submitOnChange: false  //Casey
 				input "motionsensors", "capability.motionSensor",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Motion sensors</b>", submitOnChange: false
+                input "musicplayers", "capability.musicPlayer",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Music Players</b>", submitOnChange: false
                 input "outlets", "capability.outlet",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Outlets</b>", submitOnChange: false
                 input "powersensors", "capability.powerMeter",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Power sensors</b>", submitOnChange: false
 				input "presencesensors", "capability.presenceSensor",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Presence sensors</b>", submitOnChange: false
                 input "relayswitches", "capability.relaySwitch",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Relay Switches</b>", submitOnChange: false
                 input "shocksensors", "capability.shockSensor",hideWhenEmpty: true, title: "<b>Shock sensors</b>", multiple: true, required: false
                 input "smokesensors", "capability.smokeDetector",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Smoke detectors</b>", submitOnChange: false
-                input "speechSynthesis", "capability.speechSynthesis",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Speech Synthesis</b>", submitOnChange: false
+                input "speechsynthesis", "capability.speechSynthesis",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Speech Synthesis</b>", submitOnChange: false
                 input "switches", "capability.switch",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Switches</b>", submitOnChange: false
                 input "tempsensors", "capability.temperatureMeasurement",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Temperature sensors</b>", submitOnChange: false
 				input "thermostats", "capability.thermostat",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Thermostats</b>", submitOnChange: false
@@ -1065,7 +1066,7 @@ def addProperty(key,value) {
     if (temp[key] == null) {
        // log.error "Created first key for ${key}   ${value} "
         temp[key] = value
-        mqtt.publishMsg (key+'/$properties',"${temp[key]}",1,true,atomicState.suppress)
+        mqtt.publishMsg (key+'/$properties',"${temp[key]}",1,true)
     }
     else {
         if (temp[key].contains (value)){
@@ -1073,8 +1074,9 @@ def addProperty(key,value) {
             return
         }
         temp[key] = temp[key] + "," + value
-        // log.error "Appended ${value}  to ${key} ${temp[key]}"
-        mqtt.publishMsg (key+'/$properties',"${temp[key]}",1,true,atomicState.suppress)
+        //log.error "Appended ${value}  to ${key} ${temp[key]}"
+        //mqtt.publishMsg (key+'/$properties',"${temp[key]}",1,true,atomicState.suppress)
+        mqtt.publishMsg (key+'/$properties',"${temp[key]}",1,true)
         
     }
     atomicState.properties=temp
@@ -1306,7 +1308,8 @@ def deviceSubscribes(count) {
         count = registerAll (keypads,count,'keypadDevices')
         count = registerAll (outlets,count,'otherDevices')
         count = registerAll (relayswitches,count,'otherDevices')
-        count = registerAll (speechSynthesis,count,'audioDevices')
+        count = registerAll (musicplayers,count,'audioDevices')
+        count = registerAll (speechsynthesis,count,'audioDevices')
         count = registerAll (valves,count,'otherDevices')
         count = registerAll (windowshades,count,'otherDevices')
     atomicState.delay=0
@@ -1435,6 +1438,10 @@ def lookupHandler(device,capability,attribute,handlerReq='none')
    case "Lock":
         handler="locked"
 		break
+   case "SpeechSynthesis":
+   case "MusicPlayer":
+       handler="audioDevices"
+       break
    case "HoldableButton":
    case "PushableButton":
    case "DoubleTapableButton":
@@ -1701,7 +1708,8 @@ def synchDevices(evt) {
     devLoop (settings?.keypads,"securityKeypad","keypadDevices")
     devLoop (settings?.outlets,"outlet","otherDevices")
     devLoop (settings?.relayswitches,"relaySwitch","otherDevices")
-    devLoop (settings?.speechSynthesis,"speech","audioDevices")
+    devLoop (settings?.speechsynthesis,"speech","audioDevices")
+    devLoop (settings?.musicplayers,"music","audioDevices")
     devLoop (settings?.valves,"valve","otherDevices")
     devLoop (settings?.watersensors,"water","sensorDevices")
     devLoop (settings?.globVars,"variable","otherDevices")
@@ -1767,6 +1775,7 @@ def devLoop(deviceList, attribute, handler, type='none'){  // This registers a s
                 else if (handler=="otherDevices") otherDevices(null, myName, type, it.currentValue(attribute),it.id) //,multiple)
                 else if (handler=="locked") locked(null, myName, type, it.currentValue(attribute),it.id) //,multiple,it.id)
                 else if (handler=="keypadDevices") keypadDevices(null, myName, type, it.currentValue(attribute),it.id) //,multiple)
+                else if (handler=="audioDevices") audioDevices(null, myName, type, it.currentValue(attribute),it.id) //,multiple)
 			}
             
             else log("No [" + attribute + "] attribute value available for [${myName}]", "WARN")
@@ -3145,26 +3154,76 @@ def garageDevices(evt, name=null, type=null, state=null, id=0, multiple=false) {
 }
 
 def audioDevices(evt, name=null, type=null, state=null, id=0, multiple=false) {
-            if (!atomicState.suppress){
-                sTopic="homie/${atomicState.normHubName}/${normName}"
-                mqtt.publishMsg (sTopic+'/$properties','speech',1,true,atomicState.suppress)
-                mqtt.publishMsg (sTopic+'/'+category+'/$datatype','text',1,true,atomicState.suppress)
-                mqtt.publishMsg (sTopic+'/'+category+'/$settable','true',1,true,atomicState.suppress)
-                mqtt.publishMsg (sTopic+'/'+category+'/$retained','true',1,true,atomicState.suppress)
-                mqtt.publishMsg (sTopic+'/'+category+'/$name',evt.displayName,1,true,atomicState.suppress)
-            }
-    if (evt.name=="trackDescription") {
+    if (evt!=null)
+	{
+		name=evt.displayName
+		state=evt.value
+		xType=evt.name  // attribute name
+		log ("audio Devices got called by event ${name} with ${state}   ${evt.getDevice()}  ${evt.device.typeName} ${xType} ${evt.getDisplayName()}", "TRACE")
+	} 
+	else {
+		xType=type
+		if (multiple) nameSuffix='_'+type else nameSuffix=''
+		xName=name+nameSuffix
+		log ("audio Devices (synch) called with name:${name}    xName: ${xName}    type: ${type} / ${xType}   state: ${state}    multiple: ${multiple}","TRACE")
+	}
+    normName = normalize(name)
+    settable="false"
+    sTopic="homie/${atomicState.normHubName}/${normName}"
+    category=normalize(xType)
+    addProperty(sTopic,category)                          // TODO This is getting called too fast for atomicState to update
+	//HAtype='music'
+	//UOM=''
+    dataType='text'
+    settable='false'
+    TTS=false
+    atomicState.suppress=true   
+    if (category=="trackdescription") {
         len=evt.value.length()
         if (len>20){
             checkTTS = evt.value.substring (len-8,len)
             if (checkTTS=="from TTS") {
                 log ("Just announced " + evt.value.substring(0, evt.value.length() - 20),"TRACE")
-                normName = normalize(evt.displayName)
                 category="speech"
-                sTopic="homie/${atomicState.normHubName}/${normName}"
+                settable='true'
+                TTS=true
                 mqtt.publishMsg (sTopic+'/'+category,evt.value.substring(0, evt.value.length() - 20),1,true)
             }
         }
+        if (!TTS) {
+             mqtt.publishMsg (sTopic+'/'+category,evt.value,1,true)  
+        }
+       TTS=false
+    }
+    else if (category=="trackdata") {
+
+            dataType='json'
+            mqtt.publishMsg (sTopic+'/'+category+'/$settable','false',1,true,atomicState.suppress)
+            mqtt.publishMsg (sTopic+'/'+category,evt.value,1,true)
+    }
+    else if (category=="status") {
+            addProperty(sTopic,'status')
+            dataType='enum'
+            mqtt.publishMsg (sTopic+'/'+category,evt.value,1,true)
+            mqtt.publishMsg (sTopic+'/'+category+'/$format','[playing,stopped,paused,transitioning]',1,true)
+    }
+    else if (category=="level"||category=='volume') {
+            dataType='integer'
+            mqtt.publishMsg (sTopic+'/'+category,evt.value,1,true)
+            mqtt.publishMsg (sTopic+'/'+category+'/$format','0:100',1,true)
+            addProperty(sTopic,category)
+    }
+    else {
+        log ("Music: " + xType,"LOG")
+        mqtt.publishMsg (sTopic+'/'+category,evt.value,1,true)
+    }            
+    atomicState.suppress=false
+    if (!atomicState.suppress){
+        //mqtt.publishMsg (sTopic+'/$properties',category,1,true,atomicState.suppress)
+        mqtt.publishMsg (sTopic+'/'+category+'/$datatype',dataType,1,true,atomicState.suppress)
+        mqtt.publishMsg (sTopic+'/'+category+'/$settable',settable,1,true,atomicState.suppress)
+        mqtt.publishMsg (sTopic+'/'+category+'/$retained','true',1,true,atomicState.suppress)
+        mqtt.publishMsg (sTopic+'/'+category+'/$name',evt.displayName,1,true,atomicState.suppress)
     }
 }
 
@@ -5585,11 +5644,21 @@ if (DNI != null){
 			}   
     }
     else if (data.cmd=="speech"){
-        speechDev=(settings?.speechSynthesis)
+        speechDev=(settings?.speechsynthesis)
 	        if (speechDev != null){
 		        speechDev.each{
                     if (normalize(it.displayName)==matchName) {
                       it.speak(data.state,30) 
+                    }
+                }
+            }
+    }
+    else if (data.cmd=="music"){
+        musicDev=(settings?.musicplayers)
+	        if (musicDev != null){
+		        musicDev.each{
+                    if (normalize(it.displayName)==matchName) {
+                        log ("Music Command not yet implemented " + musicDec + " [" + data.state + "}","WARN") 
                     }
                 }
             }
