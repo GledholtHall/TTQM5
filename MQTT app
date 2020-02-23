@@ -3200,6 +3200,13 @@ def audioDevices(evt, name=null, type=null, state=null, id=0, multiple=false) {
             dataType='json'
             mqtt.publishMsg (sTopic+'/'+category+'/$settable','false',1,true,atomicState.suppress)
             mqtt.publishMsg (sTopic+'/'+category,evt.value,1,true)
+            def data = parseJson(evt.value)
+            xcat='trackdescription'
+            mqtt.publishMsg (sTopic+'/'+xcat+'/track',data.name,1,true)
+            mqtt.publishMsg (sTopic+'/'+xcat+'/artist',data.artist,1,true)
+            mqtt.publishMsg (sTopic+'/'+xcat+'/album',data.album,1,true)
+            mqtt.publishMsg (sTopic+'/'+xcat+'/tracknumber',data.trackNumber,1,true)
+          
     }
     else if (category=="status") {
             addProperty(sTopic,'status')
@@ -3211,6 +3218,12 @@ def audioDevices(evt, name=null, type=null, state=null, id=0, multiple=false) {
             dataType='integer'
             mqtt.publishMsg (sTopic+'/'+category,evt.value,1,true)
             mqtt.publishMsg (sTopic+'/'+category+'/$format','0:100',1,true)
+            addProperty(sTopic,category)
+    }
+    else if (category=="mute") {
+            dataType='enum'  // ToDO present as boolean ??
+            mqtt.publishMsg (sTopic+'/'+category+'/$format','[muted,unmuted]',1,true)
+            mqtt.publishMsg (sTopic+'/'+category,evt.value,1,true)
             addProperty(sTopic,category)
     }
     else {
@@ -4326,7 +4339,7 @@ def LookupManual(evt) {  // only called from unhandled adhoc parse  (usually vir
     if (LookupID != null) {			        
                 device=getChildDevice(LookupID) 
                 devType=device.getTypeName()
-                log("Virtual device $device [$devType] found in topicLink","INFO") 
+                log("Virtual device $device [$devType] found in topicLink","DEBUG") 
                 found=true 
                 atomicState.lastDev="$device [$evt.value]"
 //CHANGED
@@ -4764,7 +4777,7 @@ def format (evt) {
 def dimEvent (evt) {
 	def data = parseJson(evt.data)
     //log ("event data: ${data}", "INFO")
-    log ("Received a dim event from ${evt.value} level ${data.level} is ${data.type}", "KH")
+    log ("Received a dim event from ${evt.value} level ${data.level} is ${data.type}", "DEBUG")
 	child=getChildDevice("MQTT:homie_"+evt.value)
     //if (child==null) child=getChildDevice("MQTT:HA_"+evt.value)
     if (child==null) child=getChildDevice("MQTT:HA_[" + data.type+"]_"+evt.value)
@@ -4780,7 +4793,7 @@ def dimEvent (evt) {
 		}
 			if (child==null) return  
 	}
-    log  ("Got " + child + " [" + + child.getSupportedAttributes().size() + "] " + child.getSupportedAttributes(), "KH")
+    //log  ("Got " + child + " [" + + child.getSupportedAttributes().size() + "] " + child.getSupportedAttributes(), "KH")
     myMax = child.getDataValue("max_Level")   //TODO need to scale here
 	log ("Setting Child dim level to ${data.level}", "KH")
     child.setLevel(data.level.toInteger(),1)
@@ -5125,58 +5138,16 @@ def cmdEvent (evt) {  // 'set' command from homie for a Hubitat or manual device
     matchName=evt.value
     found=false
     cTime=now()
-/*
-    if (atomicState.newMap[normName]==null){
-		log ("No DNI for ${normName} ### ", "WARN") // could check from data.topic.topic[0]
-    }
-*/
-//    else {
-        DNI=atomicState.newMap[normName]
-/*
-if (DNI != null){
-        log.error "DNI find is " + DNI + " " + (cTime-now()) + " mS"
-        everything=(settings?.allDevices)
-          everything.findAll( {it.deviceNetworkId == DNI} ).each {           
-            matchName=it.displayName
-            device=it
-            found=true
-            log ("Found in allDevices device: ID: ${device.id}, Label: ${device.label}, DisplayName: ${device.displayName}, Name: ${device.name}","DEBUG")
-            atomicState.lastDev="$device [$data.state]"
-        }
-       log.error "Everything find is " + (cTime-now()) + " mS"
-    }
-
-
-    if (found=='true') {  // This is just for max speed on dimmers and switches
-        if (data.cmd=="onoff") {
-            values="on,true,yes,1"
-            if (values.contains(data.state.toLowerCase())) device.on()
-            else {
-                values="off,false,no,0"
-			    if (values.contains(data.state.toLowerCase())) device.off()
-            }
-            return
-        }
-         if (data.cmd=="dim") {
-            device.setLevel(data.state.toInteger(),1)
-            return
-            }
-    }
-*/    
-    if (found=="false") log ("New Map did not find $normName","WARN")
-
-    
-    log ("${data.cmd} received ${data.state}","DEBUG")
-  
+    //     DNI=atomicState.newMap[normName]
+    log ("${data.cmd} received ${data.state}","TRACE") 
 	if (atomicState.nameMap[normName]==null){
 		log ("No name map for ${normName} so assume Hubitat basic topic or homie /hub", "INFO") // could check from data.topic.topic[0]
 		matchName=normName
 	 }
     else {
         matchName=atomicState.nameMap[normName]
-        found=true
+        found=true   
     }
-    
     log ("${data.cmd} received ${data.state}","TRACE")
     
     if (matchName=="hub"){
@@ -5190,30 +5161,25 @@ if (DNI != null){
 		        }
 	        }
         }
-    }
-    
-    
+    }    
 	else if (data.cmd=="onoff" || data.cmd=="switch") {  // TODO convert to select / case   'switch' comes from RGB devices
 		MQTTswitches = (settings?.switches)
-		log ("Switch Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","TRACE")
-		MQTTswitches.each {  	
-			if (normalize(it.displayName)==matchName){	
+		log ("Switch Lookup for  "+ evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","TRACE")
+		MQTTswitches.each { 
+			//if (normalize(it.displayName)==matchName){
+            if (it.displayName==matchName){
 				// DUPLICATED TODO combine this as one method for all
-				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
+				log ("Surmising required state [" +data.state+"] for " + evt.value,"TRACE")
 				OnValues="on,true,yes,1"  
 				OffValues="off,false,no,0"
                 //log.error "${it.displayName} should be checking for ${it.currentValue('stateON')}"
 				if (OnValues.contains(data.state.toLowerCase()))
 				{
-					//if (devType == "system") 
-					it.on()  // think can only be a system type here
-					//else device.toON()
+					it.on()
 				}
 				else if (OffValues.contains(data.state.toLowerCase()))
 				{
-					//if (devType == "system") 
-					it.off() // think can only be a system type here
-					//else device.toOFF()
+					it.off()
 				}
 				else log ("Unknown state value " + data.state +" - need to add to lookup","WARN")
                 return
@@ -5222,71 +5188,63 @@ if (DNI != null){
 		MQTTdimmers = (settings?.dimmers)
 		log ("Dimmer Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","TRACE")
 		MQTTdimmers.each {  
-			if (normalize(it.displayName)==matchName){
+			//if (normalize(it.displayName)==matchName){
+            if (it.displayName==matchName){
 			// TODO combine this below as one method for all
-				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
+				log ("Surmising required state [" +data.state+"] for " + evt.value,"TRACE")
 				OnValues="on,true,yes,1"  
 				OffValues="off,false,no,0"
 				if (OnValues.contains(data.state.toLowerCase()))
 				{
-					//if (devType == "system") 
-					it.on()  // think can only be a system type here
-					//else device.toON()
+					it.on()
 				}
 				else if (OffValues.contains(data.state.toLowerCase()))
 				{
-					//if (devType == "system") 
-					it.off() // think can only be a system type here
-					//else device.toOFF()
+					it.off() 
 				}
 				else log ("Unknown state value " + data.state +" - need to add to lookup","WARN")
                 return
 			}
 		}		
 		MQTTRGB = (settings?.colour)
-		// log ("ColourC Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","TRACE")
-		MQTTRGB.each { 
-		if (normalize(it.displayName)==matchName){
+		//log ("ColourC Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","TRACE")
+        
+		MQTTRGB.each {
+             log ("ColourC Lookup for  "+ evt.value + " is " + matchName + "  " + it.displayName +  " [" + atomicState.nameMap[index] +"] ","TRACE")
+		    //if (normalize(it.displayName)==matchName){
+            if (it.displayName==matchName){
 			// TODO combine this below as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
 				OnValues="on,true,yes,1"  
 				OffValues="off,false,no,0"
 				if (OnValues.contains(data.state.toLowerCase()))
 				{
-					//if (devType == "system") 
-					it.on()  // think can only be a system type here
-					//else device.toON()
+					it.on()
 				}
 				else if (OffValues.contains(data.state.toLowerCase()))
 				{
-					//if (devType == "system") 
-					it.off() // think can only be a system type here
-					//else device.toOFF()
+					it.off()
 				}
 				else log ("Unknown state value " + data.state +" - need to add to lookup","WARN")
             return
 			}
 		}
-// TODO Think this can be ignore FTTB as it is a near duplicate in terms of lookup	
 		MQTTRGBT = (settings?.colourT)
     	//log ("ColourT Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","TRACE")
 		MQTTRGBT.each {  
-		if (normalize(it.displayName)==matchName){
+		    //if (normalize(it.displayName)==matchName){
+            if (it.displayName==matchName){
 			// TODO combine this below as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
 				OnValues="on,true,yes,1"  
 				OffValues="off,false,no,0"
 				if (OnValues.contains(data.state.toLowerCase()))
 				{
-					//if (devType == "system") 
-					it.on()  // think can only be a system type here
-					//else device.toON()
+					it.on()
 				}
 				else if (OffValues.contains(data.state.toLowerCase()))
-				{
-					//if (devType == "system") 
-					it.off() // think can only be a system type here
-					//else device.toOFF()
+				{ 
+					it.off()
 				}
 				else log ("Unknown state value " + data.state +" - need to add to lookup","WARN")
             return
@@ -5300,7 +5258,8 @@ if (DNI != null){
 			log ("Dimmer Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","TRACE")
 			MQTTdimmers = (settings?.dimmers)
 			MQTTdimmers.each {
-				if (normalize(it.displayName)==matchName){
+				//if (normalize(it.displayName)==matchName){
+                if (it.displayName==matchName){
 					log ("Found " + it.displayName, "TRACE")
 					it.setLevel(intLevel,1)
                     return
@@ -5308,21 +5267,24 @@ if (DNI != null){
 			}
 			adhoc=(settings?.adhoc) 
 			adhoc.each { 
-				if (normalize(it.displayName)==matchName){ 
+				//if (normalize(it.displayName)==matchName){
+                if (it.displayName==matchName){
 				it.setLevel(intLevel,1)
                 return
 				}
 			}
 			MQTTRGB = (settings?.colour)
 			MQTTRGB.each { 
-				if (normalize(it.displayName)==matchName){
+				//if (normalize(it.displayName)==matchName){
+                if (it.displayName==matchName){
 			    it.setLevel(intLevel,1)
                 return
 				}
 			}
             MQTTRGB = (settings?.colourT)
 			MQTTRGB.each { 
-				if (normalize(it.displayName)==matchName){
+				//if (normalize(it.displayName)==matchName){
+                if (it.displayName==matchName){
 			    it.setLevel(intLevel,1)
                 return
 				}
@@ -5332,7 +5294,8 @@ if (DNI != null){
 	else if (data.cmd=="color") {		
 			MQTTRGB = (settings?.colour)
 			MQTTRGB.each {
-				if (normalize(it.displayName)==matchName){
+				//if (normalize(it.displayName)==matchName){
+                if (it.displayName==matchName){
                     if (data.state[0]=='#') {
                         try {
                         RGB=hubitat.helper.ColorUtils.hexToRGB(data.state)
@@ -5401,7 +5364,8 @@ if (DNI != null){
 	else if (data.cmd=="hsv") {
 			MQTTRGB = (settings?.colour)
 			MQTTRGB.each {
-				if (normalize(it.displayName)==matchName){
+				//if (normalize(it.displayName)==matchName){
+                if (it.displayName==matchName){
 					it.setSaturation(data.payload[1].toInteger())
 					it.setHue(data.payload[0].toInteger())
 					it.setLevel(data.payload[2].toInteger())
@@ -5411,7 +5375,8 @@ if (DNI != null){
 	else if (data.cmd=="hue") {
 			MQTTRGB = (settings?.colour)
 			MQTTRGB.each {
-				if (normalize(it.displayName)==matchName){
+				//if (normalize(it.displayName)==matchName){
+                if (it.displayName==matchName){
 					it.setHue(data.payload[0].toInteger())
 				}
 			}
@@ -5419,7 +5384,8 @@ if (DNI != null){
 	else if (data.cmd=="level") {  // currently only searching colour bulbs for this as it's a RGB event
 			MQTTRGB = (settings?.colour)
 			MQTTRGB.each { 
-				if (normalize(it.displayName)==matchName){
+				//if (normalize(it.displayName)==matchName){
+                if (it.displayName==matchName){
 					it.setLevel(data.payload[0].toInteger())
 				}
 			}
@@ -5427,7 +5393,8 @@ if (DNI != null){
 	else if (data.cmd=="saturation") {
 			MQTTRGB = (settings?.colour)
 			MQTTRGB.each { 
-				if (normalize(it.displayName)==matchName){
+				//if (normalize(it.displayName)==matchName){
+                if (it.displayName==matchName){
 					it.setSaturation(data.payload[0].toInteger())
 				}
 			}
@@ -5435,7 +5402,8 @@ if (DNI != null){
 	else if (data.cmd=="color-temperature") {  // This is from the homie topic       //TOD these on homie are normalised names - need to match as such i.e. as in thermostats below TODO BUG ??
 			MQTTRGBT = (settings?.colourT)
 			MQTTRGBT.each { 
-				if (normalize(it.displayName)==matchName){
+				//if (normalize(it.displayName)==matchName){
+                if (it.displayName==matchName){
                     int cKelvin=data.state.toInteger()
                     int cMired=0
                     if (cKelvin>1000) cMired=(int)1000000/cKelvin // was Kelvin
@@ -5455,7 +5423,8 @@ if (DNI != null){
 		MQTTlocks = (settings?.locks)
 		log ("Lock Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","TRACE")
 		MQTTlocks.each {   
-			if (normalize(it.displayName)==matchName){
+			//if (normalize(it.displayName)==matchName){
+            if (it.displayName==matchName){
 				// DUPLICATED TODO combine this as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
 				LockValues="true"
@@ -5483,7 +5452,8 @@ if (DNI != null){
 		MQTTgarage = (settings?.garagedoors)
 		log ("Garage Door Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","DEBUG")
 		MQTTgarage.each {            
-			if (normalize(it.displayName)==matchName){
+			//if (normalize(it.displayName)==matchName){
+            if (it.displayName==matchName){
          	    // DUPLICATED TODO combine this as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
 				CloseValues="close"
@@ -5508,7 +5478,8 @@ if (DNI != null){
 		MQTTwindow = (settings?.windowshades)
 		log ("Window Shade Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","DEBUG")
         MQTTwindow.each {            
-		 if (normalize(it.displayName)==matchName) {
+		 //if (normalize(it.displayName)==matchName) {
+            if (it.displayName==matchName){
 			    // DUPLICATED TODO combine this as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
 				CloseValues="close"
@@ -5543,7 +5514,8 @@ if (DNI != null){
         MQTTvalve = (settings?.valves)
 		log ("Valve Lookup for  "+  evt.value + " is " + matchName + " [" + atomicState.nameMap[index] +"] ","DEBUG")
         MQTTvalve.each {            
-		 if (normalize(it.displayName)==matchName) {
+		 //if (normalize(it.displayName)==matchName) {
+            if (it.displayName==matchName){
                 // DUPLICATED TODO combine this as one method for all
 				log ("Surmising required state [" +data.state+"] for " + evt.value,"DEBUG")
 				CloseValues="closed"
@@ -5570,7 +5542,8 @@ if (DNI != null){
            	thermDev=(settings?.thermostats)
 	        if (thermDev != null){
 		        thermDev.each{                 
-                    if (normalize(it.displayName)==matchName) {
+                    //if (normalize(it.displayName)==matchName) {
+                    if (it.displayName==matchName){
                         //log ("Changing ${data.cmd} of ${it.name} to ${data.state}","ERROR")                        
                         if (data.cmd=="heating-setpoint"){
                             Float setTemp = data.state.toFloat()  // string seemed to error -- just rechecking
@@ -5594,7 +5567,8 @@ if (DNI != null){
 // >> @jwilliams
     	Keypads = (settings?.keypads)
 			Keypads.each {
-				 if (normalize(it.displayName)==matchName) {
+				 //if (normalize(it.displayName)==matchName) {
+                if (it.displayName==matchName){
 					setStatus=""
 					ArmValues="armed night, armed home, armed away"
                     if (ArmValues.contains(data.state.toLowerCase())) {		
@@ -5632,13 +5606,15 @@ if (DNI != null){
     else if (data.cmd=="variable"){
        gVariables =(settings?.gVars)
             gVariables.each {
-				if (normalize(it.displayName)==matchName){
+				//if (normalize(it.displayName)==matchName){
+                if (it.displayName==matchName){
                   it.setVariable (data.state)
 				}
 			}
        gVariables =(settings?.globVars)
             gVariables.each {
-				if (normalize(it.displayName)==matchName){
+				//if (normalize(it.displayName)==matchName){
+                if (it.displayName==matchName){
                   it.setVariable (data.state)
 				}
 			}   
@@ -5647,7 +5623,8 @@ if (DNI != null){
         speechDev=(settings?.speechsynthesis)
 	        if (speechDev != null){
 		        speechDev.each{
-                    if (normalize(it.displayName)==matchName) {
+                    //if (normalize(it.displayName)==matchName) {
+                    if (it.displayName==matchName){
                       it.speak(data.state,30) 
                     }
                 }
@@ -5657,7 +5634,8 @@ if (DNI != null){
         musicDev=(settings?.musicplayers)
 	        if (musicDev != null){
 		        musicDev.each{
-                    if (normalize(it.displayName)==matchName) {
+                    //if (normalize(it.displayName)==matchName) {
+                    if (it.displayName==matchName){
                         log ("Music Command not yet implemented " + musicDec + " [" + data.state + "}","WARN") 
                     }
                 }
@@ -6396,7 +6374,7 @@ def createChildDevice(name, type, system, friendlyName, dType='default',seq=o) {
 			}
 		}
         else {
-            log ("Not enabled $name type $type","INFO")
+            log ("Not enabled $name type $type","TRACE")
         }
 	}
 	else if (system=="homie")
