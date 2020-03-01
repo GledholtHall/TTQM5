@@ -217,7 +217,7 @@ def vMQTT() {
             }
             
             dType = "capability.nowt"
-            if (capability.contains("Sensor")) sensor=true
+            if (capability.contains("Sensor")||capability.contains("Presence")) sensor=true
             dType="device."+capability.replaceAll("\\s","")           
  //     TODO  iNVESTIGATE IMPACT OF USING NON VIRTUAL DEVICES
             //else if (capability == "All Switches") dType= "capability.switch"
@@ -683,7 +683,7 @@ def createVirtual () {
     else log ("Created Child $atomicState.newDevType with name $atomicState.newDevName","INFO")
     childDev.updateDataValue("mqtt", "manual")
     childDev.updateDataValue("origin", "user")
-    if (childDev.typeName.contains("Sensor")) sensor=true else sensor=false 
+    if (childDev.typeName.contains("Sensor")||childDev.typeName.contains("Presence")) sensor=true else sensor=false 
         
                     childDev.capabilities.each { cap ->
                     log ("Found $cap in childDev $childDev.displayName","TRACE")
@@ -4063,7 +4063,7 @@ def HASwitchCapability(evt) {  //TODO merge with above
 		atomicState.HASwitchDevices = temp
 	}
          mqtt.ack(sequ)
-	createChildDevice (evt.value, "onoff", "HA", label)
+	createChildDevice (evt.value, data.type, "HA", label)
          mqtt.ack("@$sequ")
 }
 
@@ -4082,7 +4082,7 @@ def HALightCapability(evt) { //TODO merge with above
 		atomicState.HALightDevices = temp
 	}
     mqtt.ack(sequ)
-	createChildDevice (evt.value, "dim", "HA", label)
+	createChildDevice (evt.value, data.type, "HA", label)
     mqtt.ack("@$sequ")
 }
 
@@ -4104,7 +4104,7 @@ def HASensorType(evt) { //device_type
 		atomicState.HASensorDevices = temp
 	}
     mqtt.ack(sequ)
-	createChildDevice (evt.value, "sensor", "HA", label, sType)
+	createChildDevice (evt.value, data.type, "HA", label, sType)
     mqtt.ack("@$sequ")
 }
     
@@ -4124,7 +4124,7 @@ def HASensorCapability(evt) {  // friendlyName  // This is going to get added tw
 		atomicState.HASensorDevices = temp
 	}
     mqtt.ack(sequ)
-    createChildDevice (evt.value, "sensor", "HA", label)
+    createChildDevice (evt.value, data.type, "HA", label)
     mqtt.ack("@$sequ")
 }
 
@@ -4144,7 +4144,7 @@ def HABinarySensorCapability(evt) {  // TODO merge with above
 	}
 	// 4th param 'friendlyname' is not yet available so evt.value passed instead - will be renamed later in reNameDev()
 	mqtt.ack(sequ)
-    createChildDevice (evt.value, "binary_sensor", "HA", evt.value, dType)
+    createChildDevice (evt.value, data.type, "HA", evt.value, dType)
     mqtt.ack("@$sequ")
 }
 
@@ -4163,7 +4163,7 @@ def HAGroupCapability(evt) {  // TODO merge with above
 		atomicState.HAGroupDevices = temp
 	}
     mqtt.ack(sequ)
-	createChildDevice (evt.value, "group", "HA", label)
+	createChildDevice (evt.value, data.type, "HA", label)
     mqtt.ack("@$sequ")
 }
 
@@ -4182,7 +4182,7 @@ def HACoverCapability(evt) {  // TODO merge with above
 		atomicState.HACoverDevices = temp
 	}
 	mqtt.ack(sequ)
-    createChildDevice (evt.value, "cover", "HA", label)
+    createChildDevice (evt.value, data.type, "HA", label)
     mqtt.ack("@$sequ")
 }
     
@@ -4201,7 +4201,7 @@ def HALockCapability(evt) {  // TODO merge with above
 		atomicState.HALockDevices = temp
 	}
     mqtt.ack(seq)
-	createChildDevice (evt.value, "lock", "HA", label)
+	createChildDevice (evt.value, data.type, "HA", label)
     mqtt.ack("@$sequ")
 }
     
@@ -4220,7 +4220,7 @@ def HAClimateCapability(evt) {  // TODO merge with above
 		atomicState.HAClimateDevices = temp
 	}
     mqtt.ack(sequ)
-	createChildDevice (evt.value, "climate", "HA", label)
+	createChildDevice (evt.value, data.type, "HA", label)
     mqtt.ack("@$sequ")
 }
     
@@ -4239,7 +4239,7 @@ def HADeviceTrackerCapability(evt) {  // TODO merge with above
 		atomicState.HADeviceTrackerDevices = temp
 	}
 	mqtt.ack(sequ)
-    createChildDevice (evt.value, "device_tracker", "HA", label)
+    createChildDevice (evt.value, data.type, "HA", label)
     mqtt.ack("@$sequ")
 }
     
@@ -4258,7 +4258,7 @@ def HAInputBooleanCapability(evt) {  // TODO merge with above
 		atomicState.HAInputBooleanDevices = temp
 	}
 	mqtt.ack(sequ)
-    createChildDevice (evt.value, "input_boolean", "HA", label)
+    createChildDevice (evt.value, data.type, "HA", label)
     mqtt.ack("@$sequ")
 }
 
@@ -4268,6 +4268,7 @@ def HAPresenceCapability(evt) {  // TODO merge with above
 	def data = parseJson(evt.data)
 	label=data.label
     sequ=data.seq
+    log (data.type, "LOG")
 	if (temp.contains(evt.value)) {
 		//log ("Already in list: ${evt.value}", "TRACE")
 	}
@@ -4277,7 +4278,8 @@ def HAPresenceCapability(evt) {  // TODO merge with above
 		atomicState.HAPresenceDevices = temp
 	}
     mqtt.ack(sequ)
-	createChildDevice (evt.value, "presence", "HA", label)
+	//createChildDevice (evt.value, "presence", "HA", label)
+    createChildDevice (evt.value, data.type, "HA", label)
     mqtt.ack("$sequ")
 }
 def HAUnknownCapability(evt) { //TODO merge with above
@@ -4294,7 +4296,7 @@ def HAUnknownCapability(evt) { //TODO merge with above
 		atomicState.HAUnknownDevices = temp
 	}
     log ("HA unsupported device ${name}", "INFO")
-	//createChildDevice (evt.value, "dim", "HA", label)
+	//createChildDevice (evt.value, data.type, "HA", label)
 }
 
 def wildcardTopics(evt) {  // TODO merge with above
@@ -4326,6 +4328,14 @@ def LookupManual(evt) {  // only called from unhandled adhoc parse  (usually vir
     def varDevice=false
     def contactDevice=false																																		  
 	def data = parseJson(evt.data)
+    if (data.json=="true") { 
+        log ("Incoming json ", "KH")
+        jsonVal=parseJson(evt.value)
+        for (e in jsonVal) {
+            log ("${e.key} : ${e.value}","LOG")
+        }
+        return
+    }
 	deviceID=data.topic
     // only the topic is available here
     /*
@@ -4336,15 +4346,17 @@ def LookupManual(evt) {  // only called from unhandled adhoc parse  (usually vir
     */
 
     LookupID=atomicState.topicLink[deviceID]
-    if (LookupID != null) {			        
+    if (LookupID != null) {	
+        //log ("LookupID is $LookupID for $deviceID","LOG")
                 device=getChildDevice(LookupID) 
+        //log ("Device is $device","LOG")
                 devType=device.getTypeName()
-                log("Virtual device $device [$devType] found in topicLink","DEBUG") 
+                log("Virtual device $device [$devType] found in topicLink","TRACE") 
                 found=true 
                 atomicState.lastDev="$device [$evt.value]"
 //CHANGED
-                if (devType.contains("Sensor")){
-                    log ("Virtual Sensor match for $device","TRACE")
+                if (devType.contains("Sensor")||devType=="Virtual Presence"){
+                    //log ("Virtual Sensor match for $device","TRACE")
                     sensorAction (device, devType,evt.value)   
                     return  // Is there anything more to do below ?
                }
@@ -4449,7 +4461,7 @@ def LookupManual(evt) {  // only called from unhandled adhoc parse  (usually vir
                 log ("Virtual device found via DNI Lookup $it $devType", "DEBUG")
                 device=it
                 found=true 
-                if (devType.contains("Sensor")){
+                 if (devType.contains("Sensor")||devType=="Virtual Presence"){
                     log ("Virtual Sensor match for $it","TRACE")
                     sensorAction (it, devType,evt.value)   
                     return  // Is there anything more to do below ?
@@ -5004,7 +5016,7 @@ def presenceEvent(evt) {
 	log ("Received a person presence event from ${evt.value} turned ${data.status}", "DEBUG")
 	child=getChildDevice("MQTT:homie_"+evt.value)  //TODO check this method is only for homie devices
 	if (child==null) {
-		log ("getChild failed (P) for " + evt.value, "WARN")
+		//log ("getChild failed (P) for " + evt.value, "WARN")
 		//child=getChildDevice("MQTT:HA_"+evt.value)
         child=getChildDevice("MQTT:HA_[" + data.type+"]_"+evt.value)
 		if (child==null) {
@@ -5023,7 +5035,15 @@ def presenceEvent(evt) {
 			}
 		}	
 	}	
-		if (data.status=="home") child.arrived()  else child.departed()  // away status might be a zone name
+    onVal=child.getDataValue("presence_ON")
+    offVal=child.getDataValue("presence_OFF")
+    if (offVal!=null) {
+        if ((offVal==data.status)||(data.status=='away')||(data.status=='not present')) child.departed()
+    }
+    if (onVal!=null){
+        if ((onVal==data.status)||(data.status=='home')||(data.status=='present')) child.arrived()
+    }
+    //if (data.status=="home") child.arrived()  else child.departed()  // away status might be a zone name
 }
 
     
@@ -6306,13 +6326,13 @@ def createChildDevice(name, type, system, friendlyName, dType='default',seq=o) {
 	String enabledDevices=(settings?.HA_Lights) + ',' + (settings?.HA_Switches ) + ',' + (settings?.Homie_dim) + "," + (settings?.Homie_onoff) + ','  //not used
 	if (system=="HA") {
         prefix="MQTT:HA_["+type+"]_"
-        if ((type=='onoff')&&(settings?.HA_Switches != null)){	// not using 'switch' here								   
+        if ((type=='switch')&&(settings?.HA_Switches != null)){							   
 			if (settings?.HA_Switches.contains (name))
 			{
 				devEnabled=true
 			}
 		}
-		else if ((type=='dim')&&(settings?.HA_Lights != null)) {  // not using 'light' here
+		else if ((type=='light')&&(settings?.HA_Lights != null)) {  
 			if (settings?.HA_Lights.contains (name))
 			{
 				devEnabled=true
@@ -6336,7 +6356,7 @@ def createChildDevice(name, type, system, friendlyName, dType='default',seq=o) {
                 devEnabled=true
 			}
 		}
-        else if ((type=='presence')&&(settings?.HA_Presence != null)) {
+        else if ((type=='person')&&(settings?.HA_Presence != null)) {
 			if (settings?.HA_Presence.contains (name))
 			{
 				devEnabled=true
@@ -6374,7 +6394,7 @@ def createChildDevice(name, type, system, friendlyName, dType='default',seq=o) {
 			}
 		}
         else {
-            log ("Not enabled $name type $type","TRACE")
+            log ("Not enabled HA $name type $type","TRACE")
         }
 	}
 	else if (system=="homie")
@@ -6416,7 +6436,8 @@ def createChildDevice(name, type, system, friendlyName, dType='default',seq=o) {
 			{
 				devEnabled=true
 			}
-		}
+        }
+          if (!devEnabled)  log ("Not enabled homie $name type $type","KH")
 	}
     else if (system=='Sonoff') {
 		devEnabled=true
@@ -6438,7 +6459,7 @@ def createChildDevice(name, type, system, friendlyName, dType='default',seq=o) {
 		return
 	}
     else{
-    log ("["+system+"] Device enabled: $system " + name + " : " + type + " " +dType, "DEBUG")
+    log ("["+system+"] Device enabled: $system " + name + " : " + type + " " +dType, "INFO")
     }
 	child=getChildDevice(prefix+name) 
 	if (child != null) 
@@ -6451,11 +6472,11 @@ def createChildDevice(name, type, system, friendlyName, dType='default',seq=o) {
 		}
     def nameSpace="hubitat" // now all devices are Hubitat                                        
     attrData=null
-    if (type=='onoff') {
+    if ((type=='onoff')||(type=='switch')) {
         devType='Virtual Switch'
         attrData="switch"
     }
-    else if (type=='dim'){
+    else if ((type=='dim')||(type=='light')){
         devType='Virtual Dimmer'
         attrData="level"
     }                                          
@@ -6472,12 +6493,12 @@ def createChildDevice(name, type, system, friendlyName, dType='default',seq=o) {
         devType="Virtual Contact Sensor"    //devType='Virtual Switch'   //This should be a contact sensor or something as not controllabe
         attrData="contact"
     }    
-    else if (type=='presence') devType='Virtual Presence'
+    else if ((type=='presence')||(type=='person')) devType='Virtual Presence'
     else if (type=='button') devType='Virtual Button'
     else if (type=='lock') devType='Virtual Lock'
     else if (type=='cover') devType='Virtual Shade'
     else if (type=='device_tracker') devType= "Virtual Presence"
-    else if (type=='climates') {
+    else if (type=='climate') {
             log ("HA climate device not implemented yet, no device created", "WARN")
             return
     }
@@ -6514,7 +6535,7 @@ def createChildDevice(name, type, system, friendlyName, dType='default',seq=o) {
         else if (dType=="opening") devType= "Virtual Contact Sensor"
         else if (dType=="plug") devType= "Virtual Switch"
         else if (dType=="power") devType= "Virtual Omni Sensor"   //check TODO ... Generic Component Metering Switch ?
-        else if (dType=="presence") devType= "Virtual Presence" 
+        else if ((dType=="presence")||(dtype=='person')) devType= "Virtual Presence" 
         else if (dType=="pressure") devType= "Virtual Omni Sensor"    
 		else if (dType=="problem") devType= "Virtual Omni Sensor"  //TODO
 		else if (dType=="safety") devType= "Virtual Contact Sensor"
@@ -6562,7 +6583,7 @@ def createChildDevice(name, type, system, friendlyName, dType='default',seq=o) {
                         control=false 
                         binary=false
                     }
-                    if (type == 'onoff'){
+                    if (type == 'switch'){
                         if (attrData!=null) {
                             //child.updateDataValue("${attrData}_Topic]",atomicState.HA+'/switch/'+name+'/state')
 							child.updateDataValue("${attrData}_Topic",atomicState.HA+'/switch/'+name+'/state')																				  
@@ -6571,7 +6592,7 @@ def createChildDevice(name, type, system, friendlyName, dType='default',seq=o) {
                             child.updateDataValue("${attrData}_OFF","off")
                         }
 					}
-                    else if (type == 'dim') {
+                    else if (type == 'light') {
                         if (attrData!=null) {   // attrData will be 'level'
                             child.updateDataValue("switch_Topic",atomicState.HA+'/light/'+name+'/state')
                             child.updateDataValue("switch_Cmd", atomicState.HA+'/light/'+name+'/state/cmd')
