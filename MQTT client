@@ -106,7 +106,7 @@ def connect() {
     }
     mqttState=interfaces.mqtt.isConnected()
     if (mqttState) {
-        log ( "Connectod to MQTT broker ${settings?.MQTTBroker}","BLUE")
+        log ( "Connected to MQTT broker ${settings?.MQTTBroker}","BLUE")
         subscribeTopic ('homie/'+state.normHubName+'/$implementation/heartbeat')
         sendEvent(name: "MQTTStatus", value: "Connect", isStateChange: true)  // allow continue
         state.connectionAttempts = 0
@@ -339,7 +339,11 @@ def parse(String description) {
 	def topic=topicFull.split('/')
 	def topicCount=topic.size()
 	def payload=interfaces.mqtt.parseMessage(description).payload.split(',')
-        //log (topicFull + "   " + payload, "TRACE")
+    //log (topicFull + "   " + payload, "LOG")
+
+    if (payload[0].startsWith ('{')) json="true" else json="false"
+    
+    
     if (topicFull.startsWith('homie/'+state.normHubName+'/$implementation/heartbeat')) {
         log ("Rx: heartbeat [${payload[0]}]   $device.currentWaiting","DEBUG")
         if (device.currentWaiting != "none"){
@@ -360,6 +364,8 @@ def parse(String description) {
             }   
         }
    }
+
+
         
     else if (topicFull.startsWith('homie/'+state.normHubName+'/$fw')){
         rxMsg= "MQTT>RX:[$state.seq2]  [${interfaces.mqtt.parseMessage(description).payload}]  ${interfaces.mqtt.parseMessage(description).topic}"
@@ -463,7 +469,7 @@ def parse(String description) {
             sequence=state.seq2.toString()
 			if (topic[3]=='friendly_name') {
 				log ("Device ${topic[2]} is a HA switch and is called " +payload[0], "TRACE")
-				def evt3= createEvent(name: "HASwitchDev", value: topic[2], data: [label: deQuote(payload[0]),seq: sequence], isStateChange: true)
+				def evt3= createEvent(name: "HASwitchDev", value: topic[2], data: [label: deQuote(payload[0]), type: topic[1], seq: sequence], isStateChange: true)
 				pause (delay) // pace
 				state.dispatch = now()
                 return evt3
@@ -569,7 +575,7 @@ def parse(String description) {
 			}
 			log ("Unhandled HA (b) device_tracker MQTT parse  ${topic[0]}  ${topic[1]}  ${topic[2]}  ${topic[3]} - ${payload[0]}", "WARN")
             pause (delay) // pace
-            def evt60 = createEvent(name: "HAUnknown", value: topic[2], data: [status: payload[0],seq: sequence], isStateChange: true)  //, key2: payload]
+            def evt60 = createEvent(name: "HAUnknown", value: topic[2], data: [status: payload[0], type: topic[1], seq: sequence], isStateChange: true)  //, key2: payload]
             state.dispatch = now()
             return evt60
 		}
@@ -821,6 +827,10 @@ def parse(String description) {
 			state.dispatch = now()
             return evt2
 		}
+        else if (topic[3]=="$properties") {
+            
+            log ("New $properties discovery" + interfaces.mqtt.parseMessage(description).payload + " for " + topic, "LOG")
+        }
 		else if (topic[3]=='$type') {
 			//log ("Got a type of " + payload[0] + " for " + topic, "INFO")
             state.seq2++
@@ -883,7 +893,7 @@ def parse(String description) {
 			 state.dispatch = now()
 		 }
          }
-        else log ("Unhandled" + topic,"WARN")
+        else log ("Unhandled" + topic,"KH")
 	} // end remote homie
     
     else if (topic[0]=='shellies')
@@ -917,11 +927,14 @@ def parse(String description) {
 	else {  // unhandled parse messages arrive here
         state.seq2++
         sequence=state.seq2.toString()
-		log ("ad hoc MQTT parse  ${interfaces.mqtt.parseMessage(description).topic}       ${payload[0]}", "INFO")
+		log ("ad hoc MQTT parse  ${interfaces.mqtt.parseMessage(description).topic}       ${payload[0]}", "TRACE")
         pause (delay) // pace
         state.dispatch = now()
-		sendEvent (name: "Lookup", value: payload[0], data: [topic: interfaces.mqtt.parseMessage(description).topic,seq: sequence,], isStateChange: true)
+        //log.error "JSON is " + json
+        if (json=="true") sendEvent (name: "Lookup", value: interfaces.mqtt.parseMessage(description).payload, data: [topic: interfaces.mqtt.parseMessage(description).topic,seq: sequence,json: json], isStateChange: true)
+		else sendEvent (name: "Lookup", value: payload[0], data: [topic: interfaces.mqtt.parseMessage(description).topic,seq: sequence,json: json], isStateChange: true)
 	}
+    json="false"
 }
 
 def deQuote (s) {
