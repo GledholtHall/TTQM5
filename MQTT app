@@ -168,6 +168,8 @@ def secondPage(params) {
 def vMQTT() {
     dynamicPage(name: "vMQTT", title: "<h2><b>Virtual MQTT Devices and Data</b></h2>(optional)", nextPage: "discovery") {
         atomicState.vList=["RM Connector Variable", "MQTT Text", "Virtual audioVolume", "Virtual Button","Virtual CO Detector", "Virtual Color Temperature Light", "Virtual Contact Sensor", "Virtual Dimmer", "Virtual Fan Controller", "Virtual Garage Door Controller", "Virtual Humidity Sensor", "Virtual Illuminance Sensor", "Virtual Lock", "Virtual Moisture Sensor", "Virtual Motion Sensor", "Virtual Multi Sensor", "Virtual Omni Sensor", "Virtual Presence", "Virtual RGB Light", "Virtual RGBW Light", "Virtual Shade","Virtual Smoke Detector", "Virtual Switch", "Virtual Temperature Sensor", "Virtual Thermostat"  ]
+        //atomicState.attList=[:]
+        //def attmap = ['acceleration':'active|inactive','contact':'open|closed', 'water':"wet|dry"]
         section {
           //input "resetMappings", "button", title: "Reset Mappings", textColor: "red"
           input "virtuals", "capability.virtual",hideWhenEmpty: true, multiple: true, required: false, title: "<b>Virtual Devices</b>", submitOnChange: false
@@ -330,12 +332,20 @@ def vMQTT() {
         for (i = 0; i < atomicState.attList.size(); i++) { // loops for every attribute device has                                                               
                         def String var = "var" + "${i}"
                         def String varCmd = "varCmd" + "${i}" 
+                        def String varAtt = "varAtt" + "${i}"
+                        def String varJSON = "varJSON" + "${i}"
+            
                         // TODO Check - if this is a new device what happens
                         // Purge previous device settings
-                        log.info "var is " + var + " and attribute is  "+ atomicState.attList[i]
+                        //log ( "var is " + var + " and attribute is  "+ atomicState.attList[i],"LOG")
                          try {
                             data=vDev.getDataValue("${atomicState.attList[i]}_Topic")   
                              if (newDev)  app.updateSetting (var,data)
+                            dataAtt=vDev.getDataValue("${atomicState.attList[i]}_MAP")   
+                             if (newDev)  app.updateSetting (varAtt,dataAtt)
+                            dataJSON=vDev.getDataValue("${atomicState.attList[i]}_JSON")
+                             if (newDev)  app.updateSetting (varJSON,dataJSON)  //could be null
+
                          }
                          catch (e) {
                              log ("No state for $i","DEBUG")
@@ -349,26 +359,59 @@ def vMQTT() {
                              log ("No cmd for $i","DEBUG")
                           }
                         }
+            
                 if (!newDev){ // this happens when a data value was updated and the device is redisplayed (it may happen when page 2 is originally entered too ??)
                     app.removeSetting(var)
                     app.removeSetting(varCmd)
+                    app.removeSetting(varAtt)
+                    app.removeSetting(varJSON)
                         try {
                             temp=atomicState.topicLink
                             if (temp==null) temp=[:]
 							if ((settings[var]!=null) && (settings[var]!=data)) {
-                                log ("  ","DEBUG")
-                                log ("[$i] UPDATE device $vDev.name - ${atomicState.attList[i]}_Topic","DEBUG")
-                                log ("[$i] UPDATING - from " + vDev.getDataValue("${atomicState.attList[i]}_Topic"),"DEBUG")
+                                log ("  ","KH")
+                                log ("[$i] UPDATE device $vDev.name - ${atomicState.attList[i]}_Topic","KH")
+                                log ("[$i] UPDATING - from " + vDev.getDataValue("${atomicState.attList[i]}_Topic"),"KH")
                                 vDev.updateDataValue("${atomicState.attList[i]}_Topic", settings[var].trim())
                                 myVal=settings[var].trim()
                                 log ("Updating topicLink .. $myVal = $vDev.deviceNetworkId","LOG")
                                 temp[myVal] = vDev.deviceNetworkId
                                 mqtt.subscribeTopic("${settings[var]}")
-                                log ("[$i] UPDATED to ${settings[var]}","DEBUG")                             
-                                log ("  ","DEBUG")
+                                log ("[$i] UPDATED to ${settings[var]}","KH")                             
+                                log ("  ","KH")
                             }
+                            
+                            
+                            //log ("varAtt is $varAtt ${settings[varAtt]} $dataAtt", "KH")
+
+                            if ((settings[varAtt]!=null) && (settings[varAtt]!=dataAtt)) {
+                                log ("      ","KH")
+                                log ("[$i] UPDATE device $vDev.name - ${atomicState.attList[i]}_MAP","KH")
+                                log ("[$i] UPDATING - from " + vDev.getDataValue("${atomicState.attList[i]}_MAP"),"KH")
+                                vDev.updateDataValue("${atomicState.attList[i]}_MAP", settings[varAtt].trim())
+                                log ("[$i] UPDATED to ${settings[varAtt]}","KH")
+                                log ("[$i] CHECK " + vDev.getDataValue("${atomicState.attList[i]}_MAP"),"KH")
+                                log ("  ","KH")
+                            }
+
+                            if (settings[varJSON]!=null){
+                                String vJSON= settings[varJSON].toString()
+                                //if (settings[varJSON]!=dataJSON) {
+                                if (vJSON!=dataJSON) {
+                                log ("       ","KH")
+                                log ("[$i] UPDATE device $vDev.name - ${atomicState.attList[i]}_JSON","KH")
+                                log ("[$i] UPDATING - from " + vDev.getDataValue("${atomicState.attList[i]}_MAP"),"KH")
+                                vDev.updateDataValue("${atomicState.attList[i]}_JSON", vJSON)
+                                log ("[$i] UPDATED to $vJSON","KH")
+                                log ("[$i] CHECK " + vDev.getDataValue("${atomicState.attList[i]}_JSON"),"KH")                               
+                                log ("    ","KH")
+                                }
+                            }
+                          
+                            
                         if (!sensor) {
                             if ((settings[varCmd]!=null) && (settings[varCmd]!=dataC)) {
+                                // ToDo - be able to send a JSON command
                                 log ("  ","DEBUG")
                                 log ("[$i] UPDATE device $vDev.name - ${atomicState.attList[i]}_Cmd","DEBUG")
                                 log ("[$i] UPDATING - from " + vDev.getDataValue("${atomicState.attList[i]}_Cmd"),"DEBUG")
@@ -421,40 +464,56 @@ def vMQTT() {
                       
 
        //  try {
-
-            if (vDev.getDataValue("${atomicState.attList[i]}_OFF")){
-               try {dataOFF=vDev.getDataValue("${atomicState.attList[i]}_OFF")} catch(e) {log ("FAIL OFF","WARN")}
-                    if (newDev){                        
-                        app.updateSetting("stateOFF",dataOFF)
-                        defOFF=dataOFF
+           attrList=vDev.getSupportedAttributes()
+           if (attrList[i].dataType =="ENUM") {
+             String atts = "${attrList[i].getPossibleValues()}" 
+             if (vDev.getDataValue("${atomicState.attList[i]}_MAP")){
+                // Think I already have this in dataFalse
+               try {dataAtt=vDev.getDataValue("${atomicState.attList[i]}_MAP")} catch(e) {log ("FAIL OFF","WARN")}
+                   // if (newDev){                        
+                        app.updateSetting(varAtt,dataAtt)
+                        defAtt=dataAtt
+                   // }
+                    if (atomicState.attList[i] != "level") {  // Need to expand this to other numerics and non binaries
+                        if (attrList[i].dataType =="ENUM") { 
+                        //input(name: varJSON, type: "text", defaultValue: '', title: "JSON {attribute:} name (optional)" , required: false, submitOnChange: false, hideWhenEmpty: true, width: 4)
+                        input(name: varAtt, type: "text", defaultValue: defAtt, title: "&nbsp &nbsp &nbsp &nbsp MQTT payload values for <b>$atts</b> for the <b>${atomicState.attList[i]}</b> attribute" , required: false, submitOnChange: true)// , width: 6)
+                        }
+                        if (!newDev)  {
+                            log.debug "2a Updating old ${atomicState.attList[i]}_MAP with ${settings[varAtt]} on $vDev.name"
+                            if (settings[varAtt] != null) vDev.updateDataValue("${atomicState.attList[i]}_MAP", settings[varAtt])// $settings?.stateOFF)
+                            //log.debug "2b Updating old ${atomicState.attList[i]}_JSON with ${settings[varJSON]} on $vDev.name"
+                            //if ((settings[varJSON] != null)&&(settings[varJSON] != ' ')) vDev.updateDataValue("${atomicState.attList[i]}_JSON", settings[varJSON])// $settings?.stateOFF)
+                        }
                     }
-                    if (atomicState.attList[i] != "level") {
-                    input(name: "stateOFF", type: "text", defaultValue: defOFF, title: "Please enter the FALSE status value for <b>${atomicState.attList[i]}</b> attribute" , required: false, submitOnChange: true)
-                    if (!newDev)  {
-                       // log.debug "2a Updating old ${atomicState.attList[i]}_OFF with ${settings?.stateOFF} on $vDev.name"
-                        vDev.updateDataValue("${atomicState.attList[i]}_OFF", "${settings?.stateOFF}")// $settings?.stateOFF)
-                    }
-                    }
-
             }
+            else {
+                log ("Adding the default value for ${atomicState.attList[i]}_MAP","KH")
+                vDev.updateDataValue("${atomicState.attList[i]}_MAP", atts)
+            }
+           } //not ENUM
 
-            if (vDev.getDataValue("${atomicState.attList[i]}_ON")){
-                 try {dataON=vDev.getDataValue("${atomicState.attList[i]}_ON")} catch(e) {log ("FAIL ON","WARN")}
-                    if (newDev){                        
-                        app.updateSetting("stateON",dataON)
-                        defON=dataON
-                    }
+            if (vDev.getDataValue("${atomicState.attList[i]}_JSON")){
+                 try {dataJSON=vDev.getDataValue("${atomicState.attList[i]}_JSON")} catch(e) {log ("FAIL ON","WARN")}
+                    //if (newDev){ 
+                        if (dataJSON!=null) app.updateSetting(varJSON,dataJSON)
+                        defJSON=dataJSON
+                //    }
                 if (atomicState.attList[i] != "level") {
-                     input(name: "stateON", type: "text",defaultValue: defON, title: "Please enter the TRUE status value for <b>${atomicState.attList[i]}</b> attribute" , required: false, submitOnChange: true)
+                     input(name: varJSON, type: "text",defaultValue: defJSON, title: "&nbsp &nbsp &nbsp &nbsp JSON {attribute:} name (optional) for <b>${atomicState.attList[i]}</b> attribute" , required: false, submitOnChange: true)
                     if (!newDev)  {
-                        //log.debug "3a Updating old ${atomicState.attList[i]}_ON with ${settings?.stateON} on $vDev.name"
-                        vDev.updateDataValue("${atomicState.attList[i]}_ON", "${settings?.stateON}")// $settings?.stateON)
+                        log.debug "3a Updating old ${atomicState.attList[i]}_JSON with ${settings[varJSON]} on $vDev.name"
+                        if ((settings[varJSON] != null)&&(settings[varJSON] != ' ')) {
+                            vDev.updateDataValue("${atomicState.attList[i]}_JSON", settings[varJSON])
+                        }
                     }
                 }
-
-            }                         
-        }  // end for loop on each attribute (i)
-                     
+            } 
+            else {
+                log ("Need to add a default value for ${atomicState.attList[i]}_JSON","KH")
+                vDev.updateDataValue("${atomicState.attList[i]}_JSON", " ")
+            }
+        }// end for loop on each attribute (i)                     
    } // end data value update section
          try {
             if (vDev.getDataValue("max_Level")){
@@ -475,8 +534,7 @@ def vMQTT() {
         catch (e) {}
               
         } // not enabled for MQTT
-        
-        
+              
         }  //if (vDev)
         
             else
@@ -487,6 +545,8 @@ def vMQTT() {
         } // end dynamic page    (vDev)          
         
     }
+
+
 
 def discovery() {  // can use atomicState vars in this section
     dynamicPage(name: "discovery", title: "", install: true, nextPage:"hrefPage", uninstall: false) { 
@@ -719,6 +779,7 @@ def createVirtual () {
 						
  // Allow only boolean attributes to add _ON and _OFF data values below - ideally need an attribute table lookup
 
+/*
                     // ENUM attributes
                     // Two State (boolean)
                         switch (att) {
@@ -772,9 +833,25 @@ def createVirtual () {
                                 childDev.updateDataValue(data, valON)
                                 log ("Adding default $data=<b>$valON</b> data to $childDev.displayName","INFO")
                            }
-				  
+       */
+                        
+           attr2List=childDev.getSupportedAttributes()
+         for (j = 1; j < attr2List.size(); j++) {
+           if (attr2List[j].dataType =="ENUM") {
+               String atts = "${attr2List[j].getPossibleValues()}" 
+
+              if ((childDev.getDataValue("${attr2List[j]}_MAP"))&&(childDev.getDataValue("${attr2List[j]}_MAP")!=" ")){                          
+                log ("$childDev.name ${attr2List[j]}_MAP already exists","TRACE")
               }
-          }
+              else {
+                 log ("Adding the default attribute values to ${attr2List[j]}_MAP","KH")
+                 childDev.updateDataValue("${attr2List[j]}_MAP", atts)
+              }
+
+           }
+         }	 // end for 
+     }
+  }
           if (atomicState.newDevType == "MQTT Text") {
               childDev.updateDataValue("text_Topic", "")  // This attribute is not discovered within capability as it is custom
               childDev.updateDataValue("text_Cmd", "")
@@ -2344,7 +2421,7 @@ def subscribeHomieTopic() {
     atomicState.progress = now()
 	log ("Adding homie property and node subscription topics for " + atomicState.homie, "INFO")
 	mqtt.subscribeTopic('homie/'+atomicState.homie+'/$nodes')
-	//mqtt.subscribeTopic('homie/'+atomicState.homie+'/+/$properties')  // Not using this currently - is it useful ?
+	mqtt.subscribeTopic('homie/'+atomicState.homie+'/+/$properties')  //Started using this 
 	mqtt.subscribeTopic('homie/'+atomicState.homie+'/+/$type')      //TODO from here could get a device > type list as this returns all devices with a type
 }
 
@@ -2388,7 +2465,7 @@ def start_HADiscovery(evt){
     mqtt.unsubscribeTopic('homie/'+atomicState.homie+'/+/$name')
     mqtt.unsubscribeTopic('homie/'+atomicState.homie+'/+/+/$unit')
     mqtt.unsubscribeTopic('homie/'+atomicState.homie+'/$nodes')
-	//mqtt.subscribeTopic('homie/'+atomicState.homie+'/+/$properties')   // Not subscribed currently
+	mqtt.unsubscribeTopic('homie/'+atomicState.homie+'/+/$properties')   
 	mqtt.unsubscribeTopic('homie/'+atomicState.homie+'/+/$type')     
 	mqtt.unsubscribeTopic('homie/'+atomicState.homie+'/+/dim/$format')
     mqtt.unsubscribeTopic('homie/'+atomicState.homie+'/+/dim')  // as we subscribe individually to nodes now
@@ -3561,7 +3638,7 @@ def sensorDevices(evt, name=null, type=null, state=null, id=0, multiple=false) {
                  }
 			else {
 				category = 'unknown'
-				log ("[s] Unknown Category for type ${xType} reported by device ${name}","ERROR")
+				log ("[s] Unknown Category for type ${xType} reported by device ${name}","WARN")
 			}
 			
 			sTopic="homie/${atomicState.normHubName}/${normName}"     //+category
@@ -4832,8 +4909,8 @@ def sensorAction(child,devType,val) {
     attList=child.getSupportedAttributes()
     log  ("Got " + child +" "+ devType + " " + val + " [" + + attList.size() + "] " + child.getSupportedAttributes(), "DEBUG")
     if (attList.size()>1){
-        log ("More than one [$attList.size] attributes on $child [$child.getSupportedAttributes()]","LOG")
-        log  ("Using attribute [$attName]","TRACE")
+        //log ("More than one [$attList.size] attributes on $child [$child.getSupportedAttributes()]","LOG")
+        //log  ("Using attribute [$attName]","TRACE")
     }
     attName = attList[0]
     if (attList.size()>1){log ("Looking here for $attName","TRACE")}    
@@ -4873,6 +4950,15 @@ def sensorAction(child,devType,val) {
         if (child.typeName=="MQTT Text") child.setBattery(val)  // only my MQTT Text device supports this
         else if (child.typeName=="RM Connector Variable") child.setVariable (val)
     }
+   else if (devType.contains ("pressure")) { 
+        log ("$child appears to be a pressure device - using a global variable to store the pressure [$val]","LOG")
+        if (child.typeName=="MQTT Text") child.updateText(val)  // only my MQTT Text device supports this
+        else if (child.typeName=="RM Connector Variable") child.setVariable (val)
+    }
+    else if (devType.contains ("omni")) { 
+        log ("$child appears to be an Omni catchall device [$val]  $child.typeName - using variable","LOG")
+        child.setVariable(val)
+    }
     // COClear CODetected        
     // pressure will go into variable
     else log ("Sensor not handled specifically yet with name $child and value $devType","WARN")
@@ -4902,8 +4988,8 @@ def old_binarySensorEvent(evt){
     attName = attList[0]
     log  ("Got " + child + " [" + + attList.size() + "] " + child.getSupportedAttributes(), "DEBUG")
     if (attList.size()>1) {
-            log ("More than one [$attList.size] attributes on $child [child.getSupportedAttributes()]","WARN")
-            log.info ("Using attribute $attName","DEBUG")
+            //log ("More than one [$attList.size] attributes on $child [child.getSupportedAttributes()]","WARN")
+            //log.info ("Using attribute $attName","DEBUG")
     }
     try{
         myOFF = child.getDataValue("$attName" + "_OFF")
@@ -5038,7 +5124,7 @@ def presenceEvent(evt) {
     onVal=child.getDataValue("presence_ON")
     offVal=child.getDataValue("presence_OFF")
     if (offVal!=null) {
-        if ((offVal==data.status)||(data.status=='away')||(data.status=='not present')) child.departed()
+        if ((offVal==data.status)||(data.status=='not_home')||(data.status=='not present')) child.departed()
     }
     if (onVal!=null){
         if ((onVal==data.status)||(data.status=='home')||(data.status=='present')) child.arrived()
@@ -5077,8 +5163,8 @@ def inputBooleanEvent(evt) {   // TODO This is probably identical to 'group' abo
     attName = attList[0]
     log  ("Got " + child + " [" + + attList.size() + "] " + child.getSupportedAttributes(), "DEBUG")
     if (attList.size()>1){
-        log ("More than one [$attList.size] attributes on $child [child.getSupportedAttributes()]","WARN")
-        log ("Using attribute [$attName]","TRACE")
+        //log ("More than one [$attList.size] attributes on $child [child.getSupportedAttributes()]","WARN")
+        //log ("Using attribute [$attName]","TRACE")
     }
     typeName=child.typeName
     // need to filter here on which attributes are binary and which hold data .. handled elsewhere now too
