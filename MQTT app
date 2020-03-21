@@ -31,10 +31,12 @@
   Should you wish you can help keep me awake longer via this link
 
   https://www.buymeacoffee.com/xAPPO
+  or paypal@ukusa.co.uk
 
    ######################################################################################################### */
 
 import java.security.MessageDigest
+//import groovy.json.JsonSlurper
 
 definition(
 	name: "MQTT",
@@ -125,7 +127,7 @@ preferences {  // can't use atomicState vars in this section
             }
 */
 
-                
+            //atomicState.first=true
 
 		}
 
@@ -177,10 +179,12 @@ def vMQTT() {
         }  
         //atomicState.attList=[]
         attList=[]
+        //atomicState.edit=false
         log ("FYI your MQTT child devices are ${getChildDevices()} ","INFO")
         //app.removeSetting(var)
        // atomicState.Mappings=[:]
         if (atomicState.Mappings==null) atomicState.Mappings=[:]
+/*    // No longer used ??? TODO check    
         for (i=0; i < atomicState.vList.size(); i++) {            //this loops through all the HE virtual drivers (names held in vList)           
                 def String varCap2="var_" + atomicState.vList[i].replaceAll("\\s","")
             MQTTvirt = settings[varCap2]
@@ -208,7 +212,7 @@ def vMQTT() {
 	        }   
             }
         }  //end for i loop
-
+*/
         if (capability) {
             def String varCap = "var_" + "${capability}".replaceAll("\\s","")
             sensor=false
@@ -248,15 +252,23 @@ def vMQTT() {
                     }
                     else atomicState.vDevName=""
                     }
-                    else input "oldVDev", "button", title: "Delete device $vDev", textColor: "red"
+                    else {
+                        input "oldVDev", "button", title: "Delete device $vDev", textColor: "red"
+                        input "editVDev", "button", title: "Edit device $vDev", textColor: "blue"
+                    }
                     
                 }
         }
-        if (vDev) {  // this is the whole page
+        atomicState.first=false
+        if (atomicState.first) {  // entry from another page
+            //atomicState.first=false
+        }
+        else {
+            if (vDev) { // && atomicState.edit) {  // this is the whole page
             
             log ("Selected Device is ${vDev.displayName}  - last was {$atomicState.vDev}","DEBUG")            
             if (vDev.displayName==atomicState.vDev) newDev=false else newDev=true
-            //log ("newDev is $newDev","KH")
+            log ("newDev is $newDev","LOG")
           if (newDev) { 
                 log("#### Blocking any data updates to device from previous screen ####","INFO")
                 atomicState.attList=[]
@@ -279,7 +291,7 @@ def vMQTT() {
 		// atomicState.attList now contains every attribute that the newly selected device has									  
                     
         }
-          else log ("Refresh of page with no change of device","DEBUG")  //something changed or F5
+          //else log ("Refresh of page with no change of device","KH")  //something changed or F5
             
             section {
                    // input(name: "atts", type: "enum", title: "Device Attributes",description: null, multiple: false, required: false, submitOnChange: true, options: ["Hi","you"])
@@ -306,8 +318,12 @@ def vMQTT() {
                     temp=atomicState.attList.sort()
                     atomicState.attList=temp
                     //input(name: "atts", type: "enum", title: "Device atomic Attributes",description: null, multiple: false, required: false, submitOnChange: true, options: atomicState.attList)
-                    input(name: "dMode", type: "enum", title: "Method to add device attribute topics",description: null, defaultValue: "Manual", multiple: false, required: true, submitOnChange: true, options: ["Manual", "Assisted from MQTT"]) //, "Create new device"]) 
+/*
+input(name: "dMode", type: "enum", title: "Method to add device attribute topics",description: null, defaultValue: "Manual", multiple: false, required: true, submitOnChange: true, options: ["Manual", "Assisted from MQTT"]) //, "Create new device"]) 
+
                     if (dMode=="Assisted from MQTT") assisted=true else assisted=false
+*/
+assisted=false   // beta2 .. disabling this feature temporarily as confusing
                     if (assisted) input (name: "devWildcard", type: "text", title: "Please enter a wildcarded topic encompassing the whole device but no others", submitOnChange: true)
                     if ((assisted) && (devWildcard != null)) {
 
@@ -333,7 +349,7 @@ def vMQTT() {
                         def String var = "var" + "${i}"
                         def String varCmd = "varCmd" + "${i}" 
                         def String varAtt = "varAtt" + "${i}"
-                        def String varJSON = "varJSON" + "${i}"
+                        //def String varJSON = "varJSON" + "${i}"
             
                         // TODO Check - if this is a new device what happens
                         // Purge previous device settings
@@ -343,8 +359,8 @@ def vMQTT() {
                              if (newDev)  app.updateSetting (var,data)
                             dataAtt=vDev.getDataValue("${atomicState.attList[i]}_MAP")   
                              if (newDev)  app.updateSetting (varAtt,dataAtt)
-                            dataJSON=vDev.getDataValue("${atomicState.attList[i]}_JSON")
-                             if (newDev)  app.updateSetting (varJSON,dataJSON)  //could be null
+                            //dataJSON=vDev.getDataValue("${atomicState.attList[i]}_JSON")
+                            // if (newDev)  app.updateSetting (varJSON,dataJSON)  //could be null
 
                          }
                          catch (e) {
@@ -360,30 +376,53 @@ def vMQTT() {
                           }
                         }
             
-                if (!newDev){ // this happens when a data value was updated and the device is redisplayed (it may happen when page 2 is originally entered too ??)
-                    app.removeSetting(var)
-                    app.removeSetting(varCmd)
-                    app.removeSetting(varAtt)
-                    app.removeSetting(varJSON)
+                if (!newDev){ // this happens when a data value was updated and the device is redisplayed (it also happens when page two is originally entered too)
+                    //app.removeSetting(var)
+                    //app.removeSetting(varCmd)
+                    //app.removeSetting(varAtt)
+                    //app.removeSetting(varJSON)
                         try {
                             temp=atomicState.topicLink
                             if (temp==null) temp=[:]
+
+                            //log ("Settings for $var is ${settings[var]} ~ ${attList[i]}", "KH")
+                            
+                            
 							if ((settings[var]!=null) && (settings[var]!=data)) {
                                 log ("  ","KH")
                                 log ("[$i] UPDATE device $vDev.name - ${atomicState.attList[i]}_Topic","KH")
                                 log ("[$i] UPDATING - from " + vDev.getDataValue("${atomicState.attList[i]}_Topic"),"KH")
                                 vDev.updateDataValue("${atomicState.attList[i]}_Topic", settings[var].trim())
                                 myVal=settings[var].trim()
-                                log ("Updating topicLink .. $myVal = $vDev.deviceNetworkId","LOG")
-                                temp[myVal] = vDev.deviceNetworkId
-                                mqtt.subscribeTopic("${settings[var]}")
-                                log ("[$i] UPDATED to ${settings[var]}","KH")                             
+                                
+// #############################  TODO need to strip JSON 
+                                
+                                
+                                log ("Updating topicLink .. $myVal = $vDev.deviceNetworkId","LOG")                                
+                                if (temp.containsKey(myVal)){
+                                    list=temp[myVal]       //.add(topic)
+                                    if (list.contains("$vDev.deviceNetworkId")) {
+                                    }
+                                    else {
+                                        list.add ("$vDev.deviceNetworkId")
+                                        temp["$myVal"]=list 
+                                    }
+                                }
+                                else {
+                                    list=["$vDev.deviceNetworkId"]
+                                    temp["$myVal"] = list
+                                }
+                                log ("[$i] UPDATED on add to $myVal","KH")  //   ${settings[var]}","KH")
+                                jas=myVal.indexOf("{")
+                                if ((jas>0) && (myVal.endsWith('}'))){  //strip json
+                                            //log ("Strip JSON value $defOne for subscribe" , "KH")
+                                            myVal=myVal.substring(0, jas)   
+                                }
+                                mqtt.subscribeTopic ("$myVal") // // ("${settings[var]}")  
+                                                             
                                 log ("  ","KH")
                             }
-                            
-                            
                             //log ("varAtt is $varAtt ${settings[varAtt]} $dataAtt", "KH")
-
                             if ((settings[varAtt]!=null) && (settings[varAtt]!=dataAtt)) {
                                 log ("      ","KH")
                                 log ("[$i] UPDATE device $vDev.name - ${atomicState.attList[i]}_MAP","KH")
@@ -393,7 +432,7 @@ def vMQTT() {
                                 log ("[$i] CHECK " + vDev.getDataValue("${atomicState.attList[i]}_MAP"),"KH")
                                 log ("  ","KH")
                             }
-
+/*
                             if (settings[varJSON]!=null){
                                 String vJSON= settings[varJSON].toString()
                                 //if (settings[varJSON]!=dataJSON) {
@@ -407,9 +446,9 @@ def vMQTT() {
                                 log ("    ","KH")
                                 }
                             }
-                          
+*/                          
                             
-                        if (!sensor) {
+                          if (!sensor) {
                             if ((settings[varCmd]!=null) && (settings[varCmd]!=dataC)) {
                                 // ToDo - be able to send a JSON command
                                 log ("  ","DEBUG")
@@ -425,12 +464,13 @@ def vMQTT() {
                                 log ("Subscribing to events from device $vDev","KH")
                                 registerAll (vDev,0,'none')
                             }  
-                        }
-                        atomicState.topicLink=temp
+                          }
+                         //   }
                         }
                         catch (e) {
 				            log ("[$i] Device $vDev.displayName doesn't have data for topics "+e ,"WARN")
-			            }  
+			            } 
+                        atomicState.topicLink=temp
 
                 } // not newDev
                         
@@ -442,22 +482,30 @@ def vMQTT() {
                             if (!sensor) input(name: varCmd, type: "enum", title: "<b> ${atomicState.attList[i]} </b> MQTT command topic", description: null, multiple: false, required: false, submitOnChange: true, options: temp2.sort())
                         }
                         else {
+                            if (i==0){
                             defOne=vDev.getDataValue("${atomicState.attList[i]}_Topic")
                             if ((defOne != null)&&(defOne!='')){
-                                log ("Is this a valid topic to use for ID [$i] [$defOne] ?","DEBUG")
-                                if (i==0){
+                                log ("TODO This is now not a valid topic to use for ID [$i] [$defOne] ","KH")
+                                // This is not now viable as one topic can now map to several devices
+                                //if (i==0){
                                     try {
-                                        vDev.setDeviceNetworkId("MQTT:virtual_" + defOne )
+                                        jas=defOne.indexOf("{")
+                                        if ((jas>0) && (defOne.endsWith('}'))){
+                                            log ("Strip JSON value $defOne for DNI" , "KH")
+                                            defOne=defOne.substring(0, jas ) 
+                                        }
+                                        //vDev.setDeviceNetworkId("MQTT:virtual_" + defOne )
+                                        log ("$vDev.displayName - Blocked updating DeviceNetworkId with $defOne","KH")
                                     }
                                     catch(e) { 
-                                        log ("DNI nametopic [MQTT:virtual_$defOne already exists please choose another: " +e,"LOG")
+                                        log ("DNI nametopic [MQTT:virtual_$defOne already exists please choose another: " +e,"ERROR")
                                         dup=getChildDevice("MQTT:virtual_"+defOne)
-                                        if  (dup!=null) log ("Duplicate device is called $dup.displayName","LOG")
+                                        if  (dup!=null) log ("You already have a HE device [$dup.displayName] mapped to this MQTT topic","ERROR")
                                     }
                                 }
-                                         }
-                                if (i>0) log ("Several state topics for $vDev","DEBUG")
                             }
+                            //if (i>0) log ("Several state topics for $vDev","DEBUG")
+                        }
                             defTwo=vDev.getDataValue("${atomicState.attList[i]}_Cmd")                        
                             input(name: var, type: "text", defaultValue: defOne,title: "<b> ${atomicState.attList[i]} </b> attribute MQTT status topic", description: null, multiple: false, required: false, submitOnChange: true)
                             if (!sensor) input(name: varCmd, type: "text", defaultValue: defTwo, title: "<b> ${atomicState.attList[i]} </b> MQTT command topic", description: null, multiple: false, required: false, submitOnChange: true)         
@@ -480,7 +528,7 @@ def vMQTT() {
                         input(name: varAtt, type: "text", defaultValue: defAtt, title: "&nbsp &nbsp &nbsp &nbsp MQTT payload values for <b>$atts</b> for the <b>${atomicState.attList[i]}</b> attribute" , required: false, submitOnChange: true)// , width: 6)
                         }
                         if (!newDev)  {
-                            log.debug "2a Updating old ${atomicState.attList[i]}_MAP with ${settings[varAtt]} on $vDev.name"
+                            log ("2a Updating old ${atomicState.attList[i]}_MAP with ${settings[varAtt]} on $vDev.name","KH")
                             if (settings[varAtt] != null) vDev.updateDataValue("${atomicState.attList[i]}_MAP", settings[varAtt])// $settings?.stateOFF)
                             //log.debug "2b Updating old ${atomicState.attList[i]}_JSON with ${settings[varJSON]} on $vDev.name"
                             //if ((settings[varJSON] != null)&&(settings[varJSON] != ' ')) vDev.updateDataValue("${atomicState.attList[i]}_JSON", settings[varJSON])// $settings?.stateOFF)
@@ -492,7 +540,7 @@ def vMQTT() {
                 vDev.updateDataValue("${atomicState.attList[i]}_MAP", atts)
             }
            } //not ENUM
-
+/*
             if (vDev.getDataValue("${atomicState.attList[i]}_JSON")){
                  try {dataJSON=vDev.getDataValue("${atomicState.attList[i]}_JSON")} catch(e) {log ("FAIL ON","WARN")}
                     //if (newDev){ 
@@ -513,7 +561,9 @@ def vMQTT() {
                 log ("Need to add a default value for ${atomicState.attList[i]}_JSON","KH")
                 vDev.updateDataValue("${atomicState.attList[i]}_JSON", " ")
             }
-        }// end for loop on each attribute (i)                     
+*/
+        }// end for loop on each attribute (i) 
+          //atomicState.edit=false
    } // end data value update section
          try {
             if (vDev.getDataValue("max_Level")){
@@ -532,18 +582,20 @@ def vMQTT() {
             }
         }
         catch (e) {}
-              
+        //atomicState.edit=false      
         } // not enabled for MQTT
               
         }  //if (vDev)
+
         
             else
                 if ($vDev!=null){
                 section (title: "This device <b> $vDev </b> is not enabled on MQTT") {       
                 }
+        } //atomicState.first
                 }
         } // end dynamic page    (vDev)          
-        
+       //atomicState.edit=false 
     }
 
 
@@ -733,6 +785,9 @@ def appButtonHandler(btn) {
         deleteChildDevice(vDev.deviceNetworkId)
         log ("Deleted virtual device $vDev","WARN")
     }
+    else if (btn=="editVDev") {
+        atomicState.edit=true
+    }
 }
 
 def createVirtual () {
@@ -759,7 +814,7 @@ def createVirtual () {
                             } 
                         }
                         else {
-                            childDev.updateDataValue(data, " ")
+                            childDev.updateDataValue(data, " ")  // Have to add a space here so that data displays in my editor
                             log ("Adding data $data to $childDev.displayName","INFO")
                             if (att=='level') childDev.updateDataValue("max_Level", "100")
                         }
@@ -835,7 +890,7 @@ def createVirtual () {
                            }
        */
                         
-           attr2List=childDev.getSupportedAttributes()
+         attr2List=childDev.getSupportedAttributes()
          for (j = 1; j < attr2List.size(); j++) {
            if (attr2List[j].dataType =="ENUM") {
                String atts = "${attr2List[j].getPossibleValues()}" 
@@ -904,7 +959,9 @@ def initialize() {
     def date1 = new Date()
     atomicState.properties=[:]
     atomicState.topicLink=[:]
-    if (MD5(location.hubs[0].getZigbeeId())=="ed9bb17f2f9c2e9b721e1df63cd383e8") atomicState.myHub=true else atomicState.myHub=false
+    atomicState.myHub=false
+    if (MD5(location.hubs[0].getZigbeeId())=="a2d27e03a4cd95ec7ae4df2683db81d8") atomicState.myHub=true
+    else if (MD5(location.hubs[0].getZigbeeId())=="ed9bb17f2f9c2e9b721e1df63cd383e8") atomicState.myHub=true
     countTry=5
     aborting=false
     atomicState.abort=false  // just added remove later
@@ -1115,6 +1172,16 @@ def initialize() {
 def mqttChange(evt) {  // Currently all types of devices (SWITCH DIMMER CONTACT) come in here
     if (evt.name=='switch') {
         topic = evt.device.getDataValue("switch_Cmd")
+
+        //khcheck
+          jas=topic.indexOf("{")  //JSON
+              if ((jas>0) && (topic.endsWith('}'))){  //strip json
+                 //log ("Strip JSON value $defOne for publish" , "KH")
+                  json='{"' + topic.substring(jas+1,topic.length()-1) + '":"' + evt.value +'"}'
+                  log ("json is $json ","KH")
+                  topic=topic.substring(0, jas)   
+          }  
+            
         if (evt.value == "${evt.device.getDataValue("mqtt_Switch")}") log ("Blocking ${evt.value} command to MQTT ${evt.name} as already ${evt.value}","INFO")
         else mqtt.publishMsg (topic,evt.value,1,false) // this takes no account of the switch_ON and switch_OFF settings - it assumes the /set was correct
     }
@@ -1141,17 +1208,14 @@ def addProperty(key,value) {
     //atomicState.properties=[:]
     def temp=atomicState.properties
     if (temp[key] == null) {
-       // log.error "Created first key for ${key}   ${value} "
         temp[key] = value
         mqtt.publishMsg (key+'/$properties',"${temp[key]}",1,true)
     }
     else {
         if (temp[key].contains (value)){
-        //    log.error "${value} Already exists in ${temp[key]}"
             return
         }
         temp[key] = temp[key] + "," + value
-        //log.error "Appended ${value}  to ${key} ${temp[key]}"
         //mqtt.publishMsg (key+'/$properties',"${temp[key]}",1,true,atomicState.suppress)
         mqtt.publishMsg (key+'/$properties',"${temp[key]}",1,true)
         
@@ -2427,19 +2491,46 @@ def subscribeHomieTopic() {
 
 def subscribeVirtuals() {
             temp = atomicState.topicLink
+    log ("Initializing B topicLink", "LOG")
             getChildDevices().each { dev -> 
+                
                 origin=dev.getDataValue("origin")
                 if ((origin == "user")||(origin == "Home Assistant")||(origin == "homie")) {
                     myData=dev.getData()
                     if (myData != null) myData.each { dat ->
                         if (dat.key.endsWith("_Topic")) {
-                            log ("Virtual sub [$dev] " + dat.value,"TRACE")
-                            mqtt.subscribeTopic(dat.value)
-                            temp[dat.value]=dev.deviceNetworkId  
+                            jas=dat.value.indexOf("{")
+                            topic=dat.value
+                            subTopic=topic
+                            json=''
+                            if ((jas>0) && (dat.value.endsWith('}'))){
+                                subTopic=dat.value.substring(0, jas ) 
+                               
+                                json=dat.value.substring(jas)
+                                     log ("Subtopic is JSON " + subTopic + " " + json,"KH")
+                            }
+   //=============================================================================================================================================================
+   // BUG TODO   These subscribes happen too fast and so the retained payload comes back before the atomicState topicLink map is created and are hence not 
+   //                        updated immediately...  need to delay.                       
+         if (topic.length()>1) mqtt.subscribeTopic(subTopic)  // to avoid empty or single space data                        
+   // ============================================================================================================================================================
+                            if(temp.containsKey(topic)){ 
+                             list=temp[topic]       //.add(topic)
+                                if (list.contains("$dev.deviceNetworkId")) {
+                                }
+                                else {
+                                    list.add ("$dev.deviceNetworkId")
+                                    temp["$topic"]=list 
+                                }
+                            }
+                            else {
+                                list=["$dev.deviceNetworkId"]
+                                temp["$topic"] = list
+                            }                            
                         }
                    }
                 } 
-            } 
+            }
     atomicState.topicLink = temp
 }
 
@@ -2617,6 +2708,32 @@ def subscribeOneOffTopics(topic) {
 	mqtt.subscribeTopic(topic)
 }
 
+def stringToList(maps) {
+    //maps=device.getDataValue("switch_MAP")
+    if (maps != null) {
+    //log ("Child $child $val [$attr] has mapping of $maps" ,"KH")
+    maps=maps.substring(1, maps.length() - 1)
+    mapList = maps.split(',')
+    return (mapList)
+    }
+}
+
+
+def jsonSplit (source,value=null){  // source is the json string and value is any value you want including in returned values
+               if(source!=null) {                        
+                    jas=source.indexOf("{")  //JSON
+                    if ((jas>0) && (source.endsWith('}'))){  //strip json
+                       if (value!=null) embed='{"' + source.substring(jas+1,source.length()-1) + '":"' + value +'"}'
+                       else embed=''
+                       base=source.substring(0, jas)
+                       json=source.substring(jas+1,source.length()-1 ) // ...NB this will be json not {json}
+                       return [base,json,embed]
+                     }
+                   else return [source,'',value]
+               }
+    else return ['','','']
+}
+
 //#######################################################################################################################################
 //##############################   This section takes internal events/state changes and updates the devices  ############################
 //##############################   It also publishes discovery topics using the  HA MQTT discovery protocol  ############################
@@ -2639,23 +2756,25 @@ def switched(evt, name=null, type=null, state=null,id=0) {
             {
                 cMQTT=device.getDataValue("mqtt")
                 if (cMQTT=="enabled") {
-                    cTopic=device.getDataValue("switch_Cmd") 
-                    if(cTopic!=null) {
-                        if (state=='off') { 
-                            sOFF=device.getDataValue("switch_OFF")
-                            if (sOFF != null) state=sOFF  
-                        }
+                    cTopic=device.getDataValue("switch_Cmd")  
+                    if(cTopic!=null) { 
+                        maps=device.getDataValue("switch_MAP")
+                        mapList = stringToList(maps)
+                    }
+                        //  log ("States are " + mapList[0] + " and " + mapList[1],"LOG")
                         if (state=='on') {
-                            sON=device.getDataValue("switch_ON")
-                            if (sON != null)  state = sON  
+                            if (mapList[0] != null) state = mapList[0]
+                        }
+                        if (state=='off') {
+                            if (mapList[1] != null) state = mapList[1]
                         } 
+                        (cTopic,b,state)=jsonSplit(cTopic,state)
                         log ("Sending $state command to MQTT $cTopic  $name [$state] != $atomicState.lastDev","LOG")
                         mqtt.publishMsg (cTopic,state,1,true)
                     }
                 }
             }
-	    }
-	}   
+	    } 
 	else 
 	{
 		xName=name
@@ -2707,22 +2826,25 @@ def switchedDim(evt, name=null, type=null, state=null,id=0) {  // why do we pass
             {
                 cMQTT=device.getDataValue("mqtt")
                 if (cMQTT=="enabled") {
-                    cTopic=device.getDataValue("switch_Cmd") 
-                    if(cTopic!=null) {
-                        if (state=='off') { 
-                            sOFF=device.getDataValue("switch_OFF")
-                            if (sOFF != null) state=sOFF  
-                        }
+                   cTopic=device.getDataValue("switch_Cmd") 
+                   if(cTopic!=null) { 
+                        maps=device.getDataValue("switch_MAP")
+                        mapList = stringToList(maps)
+                    }
+                      //  log ("States are " + mapList[0] + " and " + mapList[1],"LOG")                                               
                         if (state=='on') {
-                            sON=device.getDataValue("switch_ON")
-                            if (sON != null)  state = sON  
-                        } 
+                            if (mapList[0] != null) state = mapList[0]
+                        }
+                        if (state=='off') {
+                            if (mapList[1] != null) state = mapList[1]
+                        }                        
+                        (cTopic,b,state)=jsonSplit(cTopic,evt.value)
                         log ("Sending $state command to MQTT $cTopic","INFO")
                         mqtt.publishMsg (cTopic,state,1,true)
                     }
                 }
             }
-	    }
+	    
 
 	} 
 	else 
@@ -2778,7 +2900,8 @@ def dimmed(evt, name=null, type=null, state=null,id=0) {
             {
                 cMQTT=device.getDataValue("mqtt")
                 if (cMQTT=="enabled") {
-                    cTopic=device.getDataValue("level_Cmd") 
+                    cTopic=device.getDataValue("level_Cmd")
+                    (cTopic,b,state)=jsonSplit(cTopic,evt.value)
                     if(cTopic!=null) {
                         log ("Sending command to MQTT $cTopic","INFO")
                         mqtt.publishMsg (cTopic,state,1,true)
@@ -3389,8 +3512,7 @@ def otherDevices(evt, name=null, type=null, state=null, id=0, multiple=false) { 
                 //mqtt.publishMsg ("homie/${atomicState.normHubName}/variables/${normName}",state.toString(),1,settings?.homieStatesPersist)
                 settable="true"
             }
-            else if (xType=='voltage'){  //TODO
-             
+            else if (xType=='voltage'){  //TODO            
 				category='measure-voltage'
 				mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"integer",1,true,atomicState.suppress)
 				mqtt.publishMsg (sTopic+'/'+category+'/$unit','volts',1,true,atomicState.suppress)
@@ -3398,10 +3520,30 @@ def otherDevices(evt, name=null, type=null, state=null, id=0, multiple=false) { 
 				UOM="volts"
 				HAtype="sensor"
 			}
+            else if (xType=='power'){  // TODO is it this or 'energy' above ?
+				category='measure-power'
+                if (!atomicState.suppress){
+				    mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"integer",1,true,atomicState.suppress)
+				    mqtt.publishMsg (sTopic+'/'+category+'/$unit','watts',1,true,atomicState.suppress)
+				    mqtt.publishMsg (sTopic+'/'+category+'/$format','0:999999',1,true,atomicState.suppress)
+                }
+				UOM="watts"
+				HAtype="sensor"
+			}
+            else if (xType=='energy'){  // TODO is it this or 'energy' above ?
+				category='measure-energy'
+                if (!atomicState.suppress){
+				    mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"integer",1,true,atomicState.suppress)
+				    mqtt.publishMsg (sTopic+'/'+category+'/$unit','watts',1,true,atomicState.suppress)
+				    mqtt.publishMsg (sTopic+'/'+category+'/$format','0:999999',1,true,atomicState.suppress)
+                }
+				UOM="watts"
+				HAtype="sensor"
+			}
         }       
 			else {
 				category = 'unknown'
-				log ("[o] Unknown Category for type ${xType} reported by device ${name}","ERROR")
+				log ("[o] Unknown Category for type ${xType} reported by device ${name}","WARN")
 			}			
 			sTopic="homie/${atomicState.normHubName}/${normName}"     //+category
 			//================  Limited homie spec implemenation ================
@@ -3610,6 +3752,16 @@ def sensorDevices(evt, name=null, type=null, state=null, id=0, multiple=false) {
 			}
 			else if (xType=='power'){  // TODO is it this or 'energy' above ?
 				category='measure-power'
+                if (!atomicState.suppress){
+				    mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"integer",1,true,atomicState.suppress)
+				    mqtt.publishMsg (sTopic+'/'+category+'/$unit','watts',1,true,atomicState.suppress)
+				    mqtt.publishMsg (sTopic+'/'+category+'/$format','0:999999',1,true,atomicState.suppress)
+                }
+				UOM="watts"
+				HAtype="sensor"
+			}
+            else if (xType=='energy'){  // TODO is it this or 'energy' above ?
+				category='measure-energy'
                 if (!atomicState.suppress){
 				    mqtt.publishMsg (sTopic+'/'+category+'/$datatype',"integer",1,true,atomicState.suppress)
 				    mqtt.publishMsg (sTopic+'/'+category+'/$unit','watts',1,true,atomicState.suppress)
@@ -4397,308 +4549,186 @@ def wildcardTopics(evt) {  // TODO merge with above
 //###########################  This section finds the device from incoming MQTT 'set' message to allow control   #########################
 //########################################################################################################################################
 
-def LookupManual(evt) {  // only called from unhandled adhoc parse  (usually virtual devices)
+def checkTopicLink(devID) { 
+        list2=[]
+        log ("Looking for $devID","DEBUG")
+        if(atomicState.topicLink.containsKey(devID)){ 
+        list2=atomicState.topicLink[devID]      
+        if (list2.size==1) log ("[$devID] Got $list2.size device topicLink matches [$list2]", "TRACE")
+        else log ("[$devID] Got $list2.size device topicLink matches [$list2]", "TRACE")
+    }
+    else log ("topicLink lookup for $devID failed","KH")
+    return list2
+}
+
+def LookupManual(evt) {  // only called from unhandled adhoc parse  (virtual devices)
+
+    
+    
+//#############################################################################################################################       
+// TODO In Progress:  This now needs to loop through each matching device - currently just handles one device match
+// Also I'm not checking the attribute topics I'm just brute force handling the evt.value based on assuming a single attribute
+//#############################################################################################################################    
+    
     def found=false
 	def dimDevice=false
 	def onoffDevice=false
 	def textDevice=false
     def varDevice=false
-    def contactDevice=false																																		  
+    def contactDevice=false
+    def temperatureDevice=false	
 	def data = parseJson(evt.data)
-    if (data.json=="true") { 
-        log ("Incoming json ", "KH")
+    def value=evt.value
+    deviceID=data.topic
+    if (data.json=="true") json=true else json=false
+    found=false
+    if (json){
+        list=[]
         jsonVal=parseJson(evt.value)
         for (e in jsonVal) {
-            log ("${e.key} : ${e.value}","LOG")
-        }
-        return
-    }
-	deviceID=data.topic
-    // only the topic is available here
-    /*
-            DNI=atomicState.newMap[normName]
-            if (DNI != null){
-                log ("Found the DNI in atomicState newMap)
-                     }
-    */
-
-    LookupID=atomicState.topicLink[deviceID]
-    if (LookupID != null) {	
-        //log ("LookupID is $LookupID for $deviceID","LOG")
-                device=getChildDevice(LookupID) 
-        //log ("Device is $device","LOG")
-                devType=device.getTypeName()
-                log("Virtual device $device [$devType] found in topicLink","TRACE") 
-                found=true 
-                atomicState.lastDev="$device [$evt.value]"
-//CHANGED
-                if (devType.contains("Sensor")||devType=="Virtual Presence"){
-                    //log ("Virtual Sensor match for $device","TRACE")
-                    sensorAction (device, devType,evt.value)   
-                    return  // Is there anything more to do below ?
+            // TODO handle single level nested JSON but currently no more
+            // format is topic1/topic2/topic3{json1:{json2:}}  or {json1:{json2:}} ???
+            
+            value="${e.value}"
+            //log ("${e.key} : ${e.value}","LOG")
+            jsonTopic=deviceID+"{${e.key}}"
+            list=checkTopicLink (jsonTopic)
+            if (list.size>0) {
+               found=true
+               
+               //log ("FOUND JSON [$list.size]  $list $jsonTopic","LOG")
+                // if (jsonTopic.endsWith ('}}')) log ("This is a nested JSON topic " + jsonTopic , "KH")
+               list.each { DNI -> 
+                   // TODO if nested need to call with nested json keys
+                   if (value.startsWith('[') && value.endsWith(']')) log("TODO: Nested JSON $value","KH")
+               LookupAction(DNI,value,json,deviceID)
                }
-                else {
+
+            }
+        }
+    }
+
+    else {  // Not json > only one value
+        list = checkTopicLink (deviceID)
+        if (list.size>0) log ("FOUND list [$list.size]  $list","TRACE")    
+    
+        if (list.size>0) {
+            found=true
+           list.each { DNI -> 
+               //log ("Calling with $DNI","LOG")
+               LookupAction(DNI,value,json,deviceID)
+           }
+        }
+    }
+
+
+    if (!found) log ("# OK but lookup failed for [$deviceID] in topicLink #","KH")
+
+}
+
+def LookupAction(LookupID,value,json,deviceID) {
+        if (LookupID != null) {	
+        //log ("LookupID is $LookupID for $deviceID","LOG")
+        device=getChildDevice(LookupID.toString())
+            //log ("Device for LookupAction is $device $LookupID $deviceID","KH")
+            data4=device.getData()  // device not valid ??
+            //if (data4['mqtt']=="true") {  // need to include 'auto' ?
+                data4.each { key, val ->
+                  log ("Key: $key  Value:$val", "TRACE")
+                  if ((val != null) && (val != "") && (val != " ")) {
+                    if (key.endsWith ("_Topic")||(key.endsWith ("_Cmd"))) {  // Do we want to map command topics ??  //TODo I think I need a value comparison to data.topic
+                      attr = key - "_Topic"
+                      if (json==true) {
+                          updateDeviceAttribute(device,attr,value)                          
+                      }
+                      else dev2match=deviceID
+                          if (val == dev2match) {   
+                              if (key.endsWith ("_Topic")) {
+                              updateDeviceAttribute(device,attr,value)
+                              }
+                      }
+                    }
+                }
+           }
+     }
+}
+ 
+
+def updateDeviceAttribute(device,attr,value) {
+                devType=device.getTypeName()
+                //log("Virtual device $device [$devType] found in topicLink","LOG") 
+                found=true 
+                //atomicState.lastDev="$device [$evt.value]"
+                atomicState.lastDev="$device [$value]"
+                if (devType.contains("Sensor")||devType=="Virtual Presence"){  // Why do I want to know if it's a sensor ??
+                    sensorAction (device, devType,value,attr)
+                    return
+                }
+                else deviceAction (device, devType,value,attr)  
+}
+
+    
+def deviceAction (child,devType,value,attr=null)  {
+    isEnum=false
+    maps=child.getDataValue("$attr" + "_MAP")
+    if ((maps != null)&&(maps!=' ')&&(maps!='')) {
+        isEnum=true
+        //log ("Child $child $value [$attr] has mapping of $maps" ,"KH")
+        maps=maps.substring(1, maps.length() - 1)
+        mapList = maps.split(',')
+    }
+    if (isEnum)
+    {
+    if (attr=='switch') { // && device.hasCommand('off')) {  //assume it will have 'on' too
+            if (mapList[0] == value) child.off()
+            else if (mapList[1] == value) child.on()
+        }
+    }
+    
+  // else {  // These are non enumerated  BUG TODO isENum always true
+        if (attr=='level'&& child.hasCommand('setLevel')) {
+            //log ("Actioning a level device $child $value","LOG")
+            try {  // see if its numeric  // LookupLevel should be valid
+					float convertedNumber = Float.parseFloat(value)  // TODO messy and repeatedly used
+                     LookupLevel=child.getDataValue("max_Level")
+					 log ("MaxLevel is $LookupLevel and name is $device.name","INFO")
+                     if (LookupLevel == "null" || LookupLevel==null)
+					 {
+						 if (devType=="system")child.setLevel (value.toInteger(),0)
+                         child.setLevel (value.toInteger(),0)
+						 log ("There's no corresponding MaxValue for " + data.topic, "WARN")
+					 }
+					else {
+                        intLevel = convertLevel (value.toInteger(), LookupLevel.toInteger())
+						log ( " The numeric payload for " + child.name + " was converted from " + value + " to " + intLevel, "DEBUG")
+						//if (vDev) child.setLevel(intLevel,1)
+                        child.setLevel(intLevel,1)
+                        //else child.toLevel(adjLevel,1) 
+					}
+			}
+			catch (Exception e1) {
+                   log ("This payload wasnt numeric  " + value + "  " + evt.data + "  " + e1, "WARN")
+				}
+        }
+        else if (attr=='variable' && child.hasCommand('setVariable')) child.setVariable(value)
+        else if (attr=="text"){
+            if (child.hasCommand('updateText')) child.updateText (value)  // my MQTT Text driver
+            else if (child.hasCommand('setText')) child.setText (value)
+        }
+  //  }
+    
+}    
+def nonsense() {    
+    
+                //else {
                     if (device.hasCommand ("on")) onoffDevice=true
                     if (device.hasCommand ("setLevel")) dimDevice=true
                     if (device.getTypeName()=="RM Connector Variable") varDevice=true
                     if (device.getTypeName()=="MQTT Text") textDevice=true
-                } 
-    }
-    else log ("Lookup failed for $device [$devType] in topicLink","KH")																   
-
+               // } 
     
-    
-// LOOKUP for a device using my virtual drivers - no longer needed ??
-    /*
-    if (!found) {
-	tempMap=atomicState.topicMap
-	// content=[topic: data.state, maxLevel: valueMax, stateON: data.stateON, stateOFF, data.stateOFF]
-	log ("Need to find devices using [" + evt.value + "] "+ deviceID,"TRACE")
-	log ("Settings " + settings?.adhoc, "TRACE")
-	log ("Looking up in topic map for "+ deviceID + "  ==  "  + tempMap[deviceID], "DEBUG")    
-	LookupID = tempMap[deviceID]
-    if (LookupID != null) {
-			log ("***** Found in map ***** for "+ data.topic + "  ==  "  + LookupID.topic, "DEBUG")
-			devType="map"
-			if (LookupID.type=="onoff") 
-			{
-				onoffDevice=true
-				stateON = LookupID.stateON
-				stateOFF = LookupID.stateOFF
-			}
-			else if (LookupID.type=="dim") 
-			{
-				dimDevice=true
-				LookupLevel=LookupID.maxLevel
-				if (LookupLevel == '?') {
-					log ("However there was no corresponding MaxValue for " + data.topic, "WARN")
-					log ("The valueMap is ... " + LookupLevel,"WARN")
-				}
-			}
-			deviceID = LookupID.topic
-            //found=true // ???
-		}
-		else {
-			log ("Didnt find this entry in the topicMap lookup for " + deviceID  , "DEBUG")
-			for ( e in tempMap ) {
-    			log ("<topic>: key = ${e.key}, value = ${e.value}","DEBUG")
-			}
-			devType='?'
-		}
-}
-*/
-// TODO I don't seem to set device= even if found - is that because I'm just recovering a name mapping ?     
-// LOOKUP for a virtual devices by id in allDevices
-    if (!found) {
-    tempMap=atomicState.Mappings
-    LookupID=tempMap[deviceID]            
-    if (LookupID != null) {
-        log ("***** Found  in NEW map ***** for "+ data.topic + "  ==  "  + LookupID.name, "TRACE")
-        log ("Attention: referencing allDevices !!", "KH")
-        //attName = data.Topic - "_Topic"
-        dev=LookupID  //this is not the same as 'found' below in that you cant dev.getData() but can found.getData()
-        devID=LookupID.id
-        devType="virtual"
-/*  // no longer using allDevices        
-        settings.allDevices.each { possDev -> // ToDo optimise this as currently searches ALL devices - should only sort virtuals
-            if (possDev.getId() == LookupID.id) {
-                log ("Found in allDevices at $possDev for $LookupID.id with id: ${possDev.id}","WARN")
-                device = possDev
-                found=true
-            }
-        }
-        if (!found) log ("Couldn't find this deviceID $deviceID in New Map", "INFO")
-*/
-        data3=device.getData()  // device not valid ??
-            if (data3['mqtt']=="true") {
-                
-                data3.each { key, value ->
-                    log ("Key: $key  Value:$value", "TRACE")
-                  if ((value != null) && (value != "") && (value != " ")) {
-                      //if (key.endsWith ("_Topic")||(key.endsWith ("_Cmd"))) {  // Do we want to map command topics ??  //TODo I think I need a value comparison to data.topic
-                      if (value == data.topic) {   
-                              if (key.endsWith ("_Topic")) {
-                              attUpdate = key - "_Topic"
-                              log  ("Attribute to update is $attUpdate", "TRACE") 
-                                  valON=data3["${attUpdate}"+"_ON"]
-                                  valOFF=data3["${attUpdate}"+"_OFF"]                  
-                              }
-                      }
-                  }                                
-               } 
-            }        
-    } 
-}
-    
-//This one should become redundant once topicLink is populated correctly  
-    if (!found) {
-        getChildDevices().each { 
-            if (it.deviceNetworkId=="MQTT:virtual_"+deviceID){
-                devType=it.getTypeName()
-                log ("Virtual device found via DNI Lookup $it $devType", "DEBUG")
-                device=it
-                found=true 
-                 if (devType.contains("Sensor")||devType=="Virtual Presence"){
-                    log ("Virtual Sensor match for $it","TRACE")
-                    sensorAction (it, devType,evt.value)   
-                    return  // Is there anything more to do below ?
-               }
-                else {
-                    if (it.hasCommand ("on")) onoffDevice=true
-                    if (it.hasCommand ("setLevel")) dimDevice=true 
-                }
-        }
-        }    
-    }		
-	// should be found later by deviceNetworkID lookup (below)
-    if (!found) {
-		index=0	
-		for (String item : settings?.adhoc) {
-			if (adhoc[index].deviceNetworkId == "MQTT:Internal "+ deviceID){
-				log ("Manual device found via Lookup " + item + "  " + adhoc[index].type, "DEBUG")
-                                
-                def currentState = adhoc[index].currentValue("switch")  //TODO Kludge
-                if (currentState!=null){
-                    log ("Has switch capability: ${item}", "TRACE")
-                    onoffDevice=true
-                }
-                currentState = adhoc[index].currentValue("level")
-                if (currentState!=null){
-                    log ("Has dim capability: ${item}", "TRACE")
-                   dimDevice=true
-                }
-				if (devType != "map") devType="manual"
-				// TODO quit loop when found ??
-				//if (!dimDevice) onoffDevice=true //TODO - is it right to assume this ? NO
-	
-				device=adhoc[index] 
-                found=true
-				//TODO exit loop on match or match multiple ? - currently matching last
-			}
-			index++
-		}
-    }   
-    if (!found) {
-   		index=0	
-		for (String item : settings?.vSwitch) {
-            if (data.topic == vSwitch[index].getDataValue("switch_Topic")) {
-                // Could set the MQTT:Internal deviceNetworkID here if desperate but might toggle between dim and onoff topic
-			//if (vSwitch[index].deviceNetworkId == "MQTT:Internal "+ deviceID){
-				log ("Virtual 'Real' Switch device found via Lookup " + item, "WARN")
-                def currentState = vSwitch[index].currentValue("switch")  //TODO Kludge
-                if (currentState!=null){
-                    log ("Has switch capability: ${item}", "TRACE")
-                    onoffDevice=true
-                    vSwitch[index].updateDataValue("mqtt_switch", evt.value)
-                }
-                currentState = vSwitch[index].currentValue("level")
-                if (currentState!=null){
-                    log ("Has dim capability: ${item}", "TRACE")
-                   dimDevice=true
-                }
-				if (devType != "map") devType="system"
-				// TODO quit loop when found ??
-				//if (!dimDevice) onoffDevice=true //TODO - is it right to assume this ? NO
-	
-				device=vSwitch[index]  
-				//TODO exit loop on match or match multiple ? - currently matching last
-			}
-            else log ("Not found as a RealVirtual: " + item, "TRACE")
-			index++
-		}
-    } // !found    
-    if (!found) { 
-        index=0	
-		for (String item : settings?.vDimmer) { 
-            if (data.topic == vDimmer[index].getDataValue("switch_Topic")) {
-                log ("Virtual 'Real' dimmer switch device found via Lookup " + item, "TRACE") 
-            def currentState = vDimmer[index].currentValue("switch")  
-                if (currentState!=null){
-                    log ("Has switch capability: ${item}", "TRACE")
-                    onoffDevice=true
-                    vDimmer[index].updateDataValue("mqtt_Switch", evt.value)
-                }               
-             if (devType != "map") devType="system"
-				// TODO quit loop when found ??	
-			device=vDimmer[index]  
-				//TODO exit loop on match or match multiple ? - currently matching last
-			}      
-            else if (data.topic == vDimmer[index].getDataValue("level_Topic")) {
-				log ("Virtual 'Real' dimmer level device found via Lookup " + item, "TRACE") 
-                currentState = vDimmer[index].currentValue("level")
-                if (currentState!=null){
-                    log ("Has dim capability: ${item}", "TRACE")
-                    vDimmer[index].updateDataValue("mqtt_Level", evt.value)
-                   dimDevice=true
-                }
-				if (devType != "map") devType="system"
-				device=vDimmer[index]  
-				//TODO exit loop on match or match multiple ? - currently matching last
-                found=true
-			}
-            else log ("Not found as a RealVirtual: " + item, "TRACE")
-			index++
-		}
-    } // !found      
-    if (!found) {  
-        index=0	
-		for (String item : settings?.vContact) {
-            if (data.topic == vContact[index].getDataValue("contact_Topic")) {
-				log ("Virtual 'Real' Contact sensor found via Lookup " + item, "Warn")
-                currentState = vContact[index].currentValue("contact")
-                if (currentState!=null){
-                    log ("Has contact capability: ${item}", "TRACE")
-                   contactDevice=true   // This probably wont work
-                    vSwitch[index].updateDataValue("mqtt_Contact", evt.value)
-                }
-				if (devType != "map") devType="system"
-				device=vContact[index] 
-                found=true
-				//TODO exit loop on match or match multiple ? - currently matching last
-			}
-            else log ("Not found as a RealVirtual: " + item, "TRACE")
-			index++
-		}
-
-    } // !found      
-    if (!found) {
-		if (device==null) // try the HE local devices published to MQTT
-		{
-				topic = data.topic.split('/')
-				if (topic[0] != "Hubitat")
-				{
-					log ("Unexpected topic " + data.topic + " " + topic[0], "DEBUG")
-					return
-				}
-				dName=topic[2]
-			    log ("Didnt find the device by DNI lookup either " + dName, "DEBUG")
-				index=0
-				for (String item : settings?.switches) {   // SWITCHES 
-					if (item==dName) 
-					{
-						log ("Found " + dName + " in switches. DNI: " + switches[index].deviceNetworkId, "INFO")
-						device=switches[index]
-						if (topic[3]=="onoff") onoffDevice=true
-						devType="system"
-                        found=true
-					}
-					index++
-				}
-				index=0
-				for (String item : settings?.dimmers) {   // DIMMERS
-					if (item==dName) 
-					{
-					    log ("Found " + dName + " in dimmers. DNI:  " + dimmers[index].deviceNetworkId, "INFO")
-						device=dimmers[index]
-						if (topic[3]=="onoff") onoffDevice=true
-						else if (topic[3]=="dim") dimDevice=true
-						devType="system"
-                        found=true
-					}
-					index++
-				}
-		}
-    } // !found
+   
+// A lot of different (unused) lookups removed here. 
     
  /*  
 	textDev=device.currentState("mqtt")   // use currentValue instead TODO 
@@ -4718,57 +4748,89 @@ def LookupManual(evt) {  // only called from unhandled adhoc parse  (usually vir
 
 			if (device.currentState("MQTT") == "text") {
 				log ("Sending device text " + device.name , "WARN")
-				device.setValue (evt.value)
+				device.setValue (value)
 			}
 		}
 */		     
-        if (textDevice) {
-            device.updateText (evt.value)
-        }
-		if (varDevice) {
-            device.setVariable(evt.value)
-        }        
-        if (devType=="virtual"){ 
-            log ("A virtual type device $device.name was presented to update $attUpdate", "DEBUG")
-            if (attUpdate=="contact") contactDevice=true
-            //if (attUpdate=="switch") onoffDevice=true
-            //if (attUpdate=="level") dimDevice=true    
-        }       
-        if (contactDevice) {
-           if (devType=="virtual") {
-				if (evt.value==valOFF) device.close()
-				else if (evt.value==valON) device.open()
-			}
-            else {
-                closed=device.getDataValue("closed")
-                if (closed==null) closed='closed'
-                open=device.getDataValue("open")
-                if (open==null) open='open'
-                if (evt.value==closed) device.close()
-                if (evt.value==open) device.open()
+
+    
+        if (device.getDataValue("$attr" + "_MAP") != null) {
+            log ("Device has mapping of " + device.getDataValue("$attr"+"_MAP"),"KH")
+            try {
+                attrList=device.getSupportedAttributes()
+                for (i = 0; i < attrList.size(); i++) {
+                    log (attrList[i].name,"KH")
+               // if (attrList[i].dataType =="ENUM") {
+                   // String atts = "${attrList[i].getPossibleValues()}"
+                //
+              }  
             }
+            catch (e) {}
         }
+        if (attr=='text') {
+            if (device.hasCommand('updateText')) device.updateText (value)  // my MQTT Text driver
+            else if (device.hasCommand('setText')) device.setText (value)
+        }
+        else if (attr=='variable' && device.hasCommand('setVariable')) device.setVariable(value)
+        else if (attr=='temperature' && device.hasCommand('setTemperature')) device.setTemperature(value)
+        else if (attr=='switch' && device.hasCommand('off')) {  //assume it will have 'on' too
+
+            if (value=='off') device.off
+            else if (value=='on') device.on
+        }
+        else if (attr=='level'&& device.hasCommand('setLevel')) {
+            try {  // see if its numeric  // LookupLevel should be valid
+					float convertedNumber = Float.parseFloat(value)  // TODO messy and repeatedly used
+                     //vDev=false
+                     LookupLevel=device.getDataValue("max_Level")
+					 log ("MaxLevel is $LookupLevel and name is $device.name","TRACE")
+                     if (LookupLevel == "null" || LookupLevel==null)
+					 {
+						 if (devType=="system")device.setLevel (value.toInteger(),0)
+                         device.setLevel (value.toInteger(),0)
+						 log ("There's no corresponding MaxValue for " + data.topic, "WARN")
+					 }
+					else {
+                        intLevel = convertLevel (value.toInteger(), LookupLevel.toInteger())
+						log ( " The numeric payload for " + device.name + " was converted from " + value + " to " + intLevel, "DEBUG")
+						//if (vDev) device.setLevel(intLevel,1)
+                        device.setLevel(intLevel,1)
+                        //else device.toLevel(adjLevel,1) 
+					}
+			}
+			catch (Exception e1) {
+                   log ("This payload wasnt numeric  " + value + "  " + evt.data + "  " + e1, "WARN")
+				}
+        }
+        else if (devType=="virtual") attr='contact'   // check why handling this ??
+        else if (attr=='contact'&& device.hasCommand('open')) { // assume it will have 'close' too
+            if (value=='close') device.close
+            else if (value=='open') device.open
+        }
+        
+
+/*
 		if (onoffDevice)  
 		{
             //log ("Handling ${devType} $device.name as onoff", "INFO")
 			if (devType=="map") {
-				if (evt.value==LookupID.stateOFF) device.off()
-				else if (evt.value==LookupID.stateON) device.on()
+				if (value==LookupID.stateOFF) device.off()
+				else if (value==LookupID.stateON) device.on()
 			}
             else if (devType=="virtual") {
-				if (evt.value==valOFF) device.off()
-				else if (evt.value==valON) device.on()
+				if (value==valOFF) device.off()
+				else if (value==valON) device.on()
 			}
 			else {  // will have to surmise state required
-				log ("Surmising required state [" +evt.value+"] for " + device.name,"DEBUG")
+				log ("Surmising required state [" +value+"] for " + device.name,"DEBUG")
                 if (device.currentValue('stateON')!=null) OnValues=device.currentValue('stateON')
 			else OnValues="on,On,ON,true,True,TRUE,yes,Yes,YES,1"
 			if (device.currentValue('stateOFF')!=null) OffValues=device.currentValue('stateOFF')
 			else OffValues="off,Off,OFF,false,False,FALSE,no,No,NO,0"
-				//if (OnValues.contains(evt.value.toLowerCase()))
-                if (OnValues.contains(evt.value) )device.on()
-                else if (OffValues.contains(evt.value)) device.off()
-				else log ("Unknown state value " + evt.value +" - need to add in device settings (or lookup)","WARN") 
+				//if (OnValues.contains(value.toLowerCase()))
+                if (OnValues.contains(value) )device.on()
+                else if (OffValues.contains(value)) device.off()
+				else log ("Unknown state value " + value +" - need to add in device settings (or lookup)","WARN") 
 				}
 			}
 		}	
@@ -4776,31 +4838,64 @@ def LookupManual(evt) {  // only called from unhandled adhoc parse  (usually vir
 			//if (devType=="dim") {
 				 log ("Handling $device.name as dim", "DEBUG")
 				 try {  // see if its numeric  // LookupLevel should be valid
-					float convertedNumber = Float.parseFloat(evt.value)  // TODO messy and repeatedly used
+					float convertedNumber = Float.parseFloat(value)  // TODO messy and repeatedly used
                      vDev=false
                      LookupLevel=device.getDataValue("max_Level")
 					log ("MaxLevel is $LookupLevel and name is $device.name","TRACE")
                      if (LookupLevel == "null" || LookupLevel==null)
 					 {
-						 if (devType=="system")device.setLevel (evt.value.toInteger(),0)
-                         device.setLevel (evt.value.toInteger(),0)
+						 if (devType=="system")device.setLevel (value.toInteger(),0)
+                         device.setLevel (value.toInteger(),0)
 						 log ("There's no corresponding MaxValue for " + data.topic, "WARN")
 					 }
 					else {
-                        intLevel = convertLevel (evt.value.toInteger(), LookupLevel.toInteger())
-						log ( " The numeric payload for " + device.name + " was converted from " + evt.value + " to " + intLevel, "DEBUG")
+                        intLevel = convertLevel (value.toInteger(), LookupLevel.toInteger())
+						log ( " The numeric payload for " + device.name + " was converted from " + value + " to " + intLevel, "DEBUG")
 						//if (vDev) device.setLevel(intLevel,1)
                         device.setLevel(intLevel,1)
                         //else device.toLevel(adjLevel,1) 
 					}
 			}
 			catch (Exception e1) {
-           log ("This payload wasnt numeric  " + evt.value + "  " + evt.data + "  " + e1, "WARN")
+           log ("This payload wasnt numeric  " + value + "  " + evt.data + "  " + e1, "WARN")
 				}
 			//}
 		}
-		if (devType=="unknown") log ("Incoming MQTT message for unknown device "+deviceID,"ERROR")
+        else if (temperatureDevice) {
+            if (attr=='temperature') device.setTemperature(value)
+        }
+        else if (textDevice) {
+            device.updateText (value)
+        }  
+        }
+		else if (varDevice) {
+            if (attr=='variable') device.setVariable(value)
+        } 
+        else if (devType=="virtual"){ 
+            log ("A virtual type device $device.name was presented to update $attr", "DEBUG")
+            if (attr=="contact") contactDevice=true
+            //if (attUpdate=="switch") onoffDevice=true
+            //if (attUpdate=="level") dimDevice=true    
+        }       
+        if (contactDevice) {
+           if (devType=="virtual") {
+				if (value==valOFF) device.close()
+				else if (value==valON) device.open()
+			}
+            else {
+                closed=device.getDataValue("closed")
+                if (closed==null) closed='closed'
+                open=device.getDataValue("open")
+                if (open==null) open='open'
+                if (value==closed) device.close()
+                if (value==open) device.open()
+            }
+        }
+*/
+		else log ("Not actioned for $device $deviceID", "KH")
+        if (devType=="unknown") log ("Incoming MQTT message for unknown device "+deviceID,"ERROR")
 	}
+}
 
 //#######################################################################################################################################
 //############################   This section handles MQTT 'set' events/state changes and updates the devices   #########################
@@ -4904,7 +4999,91 @@ def sensorEvent(evt) {
     sensorAction(child, evt.value,data.status)
 }
     
-def sensorAction(child,devType,val) {
+def sensorAction(child,devType,val,attr=null) {
+    maps=child.getDataValue("$attr" + "_MAP")
+    if (maps != null) {
+        //log ("Child $child $val [$attr] has mapping of $maps" ,"KH")
+        maps=maps.substring(1, maps.length() - 1)
+        mapList = maps.split(',')
+        //assert mapList instanceof List
+    }
+    if (attr=="humidity"){
+        
+    //TODO Overly cautious sending the wrong command doesn't throw an error
+        if (child.hasCommand ("setHumidity")) child.setHumidity(val)
+        else if (child.hasCommand ("setRelativeHumidity")) child.setRelativeHumidity(val)
+    }
+    else if (attr=="temperature") child.setTemperature(val)        
+    else if (attr=="carbonDioxide") child.setCarbonDioxide(val)
+    else if (attr=="carbonMonoxide"){
+        if (mapList[0] == val) child.CODetected()  //child.setCarbonMonoxide(val)
+        else if (mapList[1] == val) child.COTested()   // doesnt exist ?? 
+        else if (mapList[2] == val) child.COClear()  
+    }
+    else if (attr=="illuminance")child.setIlluminance(val)
+    else if (attr=="water"){
+        if (mapList[0] == val) child.wet()
+        else if (mapList[1] == val) child.dry()
+    }        
+    else if (attr=="presence"){
+        if (mapList[0] == val) child.arrived()
+        else if (mapList[1] == val)  child.departed() 
+    }
+    else if (attr=="smoke"){
+        if (mapList[0] == val) child.smokeDetected()
+        else if (mapList[1] == val) child.smokeClear() 
+    }
+    else if (attr=="motion"){
+        if (mapList[0] == val){
+            if (child.hasCommand ("inactive")) child.inactive()
+            else if (child.hasCommand ("motionInactive")) child.motionInactive()
+        }
+        else if (mapList[1] == val) {
+            if (child.hasCommand ("active")) child.active()
+            else if (child.hasCommand ("motionActive")) child.motionActive()
+        }
+    }
+    else if (attr=="contact"){
+        if (mapList[0] == val) child.close()
+        else if (mapList[1] == val) child.open()
+    }
+    else if (attr=="battery") { 
+        log ("$child appears to be a battery device - using a global variable to store the battery level [$val]","LOG")
+        if (child.typeName=="MQTT Text") child.setBattery(val)  // only my MQTT Text device supports this
+        else if (child.typeName=="RM Connector Variable") child.setVariable (val)
+    }
+   else if (attr=="pressure") { 
+        log ("$child appears to be a pressure device - using a global variable to store the pressure [$val]","LOG")
+        if (child.typeName=="MQTT Text") child.updateText(val)  // only my MQTT Text device supports this
+        else if (child.typeName=="RM Connector Variable") child.setVariable (val)
+    }
+   else if (attr=="acceleration"){
+        if (mapList[0] == val){
+            if (child.hasCommand ("inactive")) child.inactive()
+            else if (child.hasCommand ("accelerationInactive")) child.accelerationInactive()
+        }
+        else if (mapList[1] == val) {
+            if (child.hasCommand ("active")) child.active()
+            else if (child.hasCommand ("accelerationActive")) child.accelerationActive()
+        }
+    }
+    else if (attr=="omni") { 
+        log ("$child appears to be an Omni catchall device [$val]  $child.typeName - using variable","LOG")
+        child.setVariable(val)
+    }
+    // COClear CODetected        
+    // pressure will go into variable
+    else log ("Sensor not handled specifically yet with name $child and value $devType","WARN")
+
+    
+    
+    
+    
+/*    
+    
+    
+    
+    
     devType=devType.toLowerCase()
     attList=child.getSupportedAttributes()
     log  ("Got " + child +" "+ devType + " " + val + " [" + + attList.size() + "] " + child.getSupportedAttributes(), "DEBUG")
@@ -4913,7 +5092,7 @@ def sensorAction(child,devType,val) {
         //log  ("Using attribute [$attName]","TRACE")
     }
     attName = attList[0]
-    if (attList.size()>1){log ("Looking here for $attName","TRACE")}    
+    if (attList.size()>1){log ("Looking here for $attName","TRACE")}
     if (devType.contains ("humidity")){
         if (child.hasCommand ("setHumidity")) child.setHumidity(val)
         else if (child.hasCommand ("setRelativeHumidity")) child.setHumidity(val)
@@ -4962,6 +5141,7 @@ def sensorAction(child,devType,val) {
     // COClear CODetected        
     // pressure will go into variable
     else log ("Sensor not handled specifically yet with name $child and value $devType","WARN")
+*/
 }
 
 def binarySensorEvent(evt) {
